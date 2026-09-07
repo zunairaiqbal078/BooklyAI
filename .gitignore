@@ -28,6 +28,7 @@ dist/
 */.env.staging
 */.env.development
 !.env.example
+!.env.deploy.example
 !*/.env.example
 
 # Logs

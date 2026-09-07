@@ -1,18 +1,30 @@
 import type { CookieOptions } from "express";
 import { env } from "../config/env.js";
 
+function cookieHostsDiffer(): boolean {
+  try {
+    const fe = new URL(env.FRONTEND_URL);
+    const api = new URL(env.PUBLIC_API_URL ?? `http://localhost:${env.PORT}`);
+    return fe.host !== api.host;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * HttpOnly JWT cookie. The frontend never reads this value.
- * Same-site localhost (FE :3000 / API :4000) uses Lax.
- * Cross-site production deployments should use None + Secure.
+ * - Localhost (different ports): SameSite=Lax
+ * - Same-domain EC2 (nginx): SameSite=Lax + Secure in production
+ * - Separate FE/API hosts: SameSite=None + Secure (requires HTTPS)
  */
 export function authCookieOptions(): CookieOptions {
   const isProd = env.NODE_ENV === "production";
+  const crossSite = isProd && cookieHostsDiffer();
 
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: crossSite ? "none" : "lax",
     path: "/",
     maxAge: env.JWT_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000,
   };
@@ -20,11 +32,12 @@ export function authCookieOptions(): CookieOptions {
 
 export function clearAuthCookieOptions(): CookieOptions {
   const isProd = env.NODE_ENV === "production";
+  const crossSite = isProd && cookieHostsDiffer();
 
   return {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? "none" : "lax",
+    sameSite: crossSite ? "none" : "lax",
     path: "/",
   };
 }
