@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { RequireAuth } from "@/components/auth/route-guards";
-import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { MobileAppNav } from "@/components/layout/mobile-app-nav";
 import { cn } from "@/lib/utils";
@@ -10,10 +9,10 @@ import { cn } from "@/lib/utils";
 export function AppShell({
   children,
   dense = false,
-  hideFooter = false,
 }: {
   children: ReactNode;
   dense?: boolean;
+  /** @deprecated Footer removed — prop kept optional for call-site compatibility. */
   hideFooter?: boolean;
 }) {
   return (
@@ -28,11 +27,6 @@ export function AppShell({
       >
         {children}
       </main>
-      {!hideFooter ? (
-        <div className="hidden md:block">
-          <SiteFooter />
-        </div>
-      ) : null}
       <MobileAppNav />
     </RequireAuth>
   );

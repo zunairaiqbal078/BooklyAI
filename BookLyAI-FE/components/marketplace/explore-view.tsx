@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
-import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -196,7 +195,6 @@ export function ExploreView() {
           ) : null}
         </div>
       </main>
-      <SiteFooter />
     </>
   );
 }

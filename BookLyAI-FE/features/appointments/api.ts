@@ -9,6 +9,7 @@ export interface AppointmentDetail extends Appointment {
   customerEmail: string;
   serviceId: string;
   durationMin: number;
+  priceCents: number | null;
   notes: string | null;
   reviewRequested: boolean;
   hasReview: boolean;

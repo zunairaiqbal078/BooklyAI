@@ -16,7 +16,7 @@ const ACTIVE: AppointmentStatus[] = ["PENDING", "CONFIRMED"];
 
 type AppointmentWithRelations = Appointment & {
   business: Pick<Business, "id" | "name" | "slug">;
-  service: Pick<Service, "id" | "name" | "durationMin">;
+  service: Pick<Service, "id" | "name" | "durationMin" | "priceCents">;
   customer: Pick<User, "id" | "name" | "email">;
   review: { id: string } | null;
 };
@@ -32,6 +32,7 @@ export interface AppointmentDto {
   serviceId: string;
   service: string;
   durationMin: number;
+  priceCents: number | null;
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
@@ -53,6 +54,7 @@ function toDto(row: AppointmentWithRelations): AppointmentDto {
     serviceId: row.serviceId,
     service: row.service.name,
     durationMin: row.service.durationMin,
+    priceCents: row.service.priceCents,
     startTime: row.startTime.toISOString(),
     endTime: row.endTime.toISOString(),
     status: row.status,
@@ -65,7 +67,7 @@ function toDto(row: AppointmentWithRelations): AppointmentDto {
 
 const appointmentInclude = {
   business: { select: { id: true, name: true, slug: true } },
-  service: { select: { id: true, name: true, durationMin: true } },
+  service: { select: { id: true, name: true, durationMin: true, priceCents: true } },
   customer: { select: { id: true, name: true, email: true } },
   review: { select: { id: true } },
 } as const;

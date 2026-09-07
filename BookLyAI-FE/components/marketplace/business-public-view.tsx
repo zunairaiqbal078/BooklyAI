@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { BookAppointmentForm } from "@/components/appointments/book-appointment-form";
-import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
@@ -294,7 +293,6 @@ export function BusinessPublicView() {
           </div>
         ) : null}
       </main>
-      <SiteFooter />
     </>
   );
 }

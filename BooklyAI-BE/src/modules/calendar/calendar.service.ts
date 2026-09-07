@@ -17,7 +17,7 @@ type CalendarAppointmentRow = {
   reviewRequested: boolean;
   createdAt: Date;
   business: { id: string; name: string; slug: string };
-  service: { id: string; name: string; durationMin: number };
+  service: { id: string; name: string; durationMin: number; priceCents: number | null };
   customer: { id: string; name: string; email: string };
   review: { id: string } | null;
 };
@@ -61,7 +61,7 @@ export class CalendarService {
       where,
       include: {
         business: { select: { id: true, name: true, slug: true } },
-        service: { select: { id: true, name: true, durationMin: true } },
+        service: { select: { id: true, name: true, durationMin: true, priceCents: true } },
         customer: { select: { id: true, name: true, email: true } },
         review: { select: { id: true } },
       },
@@ -79,6 +79,7 @@ export class CalendarService {
       serviceId: row.serviceId,
       service: row.service.name,
       durationMin: row.service.durationMin,
+      priceCents: row.service.priceCents,
       startTime: row.startTime.toISOString(),
       endTime: row.endTime.toISOString(),
       status: row.status,

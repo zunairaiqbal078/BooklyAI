@@ -44,6 +44,8 @@ export function DashboardView() {
 
   const stats = useMemo(() => {
     const today = todayKey();
+    const completed = appointments.filter((a) => a.status === "COMPLETED");
+    const earningsCents = completed.reduce((sum, a) => sum + (a.priceCents ?? 0), 0);
     return {
       upcoming: appointments.filter(
         (a) =>
@@ -55,8 +57,9 @@ export function DashboardView() {
           toDateKey(a.startTime) === today &&
           (a.status === "CONFIRMED" || a.status === "PENDING"),
       ),
-      completed: appointments.filter((a) => a.status === "COMPLETED"),
+      completed,
       cancelled: appointments.filter((a) => a.status === "CANCELLED"),
+      earningsCents,
     };
   }, [appointments, nowMs]);
 
@@ -101,24 +104,39 @@ export function DashboardView() {
             <h1 className="mt-2 font-display text-4xl tracking-tight">
               {greetingForNow(user.name)}
             </h1>
-            <p className="mt-2 text-sm text-muted">
-              {user.role === "BUSINESS"
-                ? "Here’s what’s on your business calendar."
-                : "Here’s what’s coming up for you."}
-            </p>
+          
           </div>
           <div className="rounded-full border border-line bg-surface px-4 py-2 text-sm text-muted">
             {user.email} · {user.role === "BUSINESS" ? "Business" : "Customer"}
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "Upcoming", value: stats.upcoming.length },
-            { label: "Today", value: stats.today.length },
-            { label: "Completed", value: stats.completed.length },
-            { label: "Cancelled", value: stats.cancelled.length },
-          ].map((item) => (
+        <section
+          className={
+            user.role === "BUSINESS"
+              ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+              : "grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+          }
+        >
+          {(
+            user.role === "BUSINESS"
+              ? [
+                  { label: "Upcoming", value: String(stats.upcoming.length) },
+                  { label: "Today", value: String(stats.today.length) },
+                  { label: "Completed", value: String(stats.completed.length) },
+                  { label: "Cancelled", value: String(stats.cancelled.length) },
+                  {
+                    label: "Total earnings",
+                    value: `$${(stats.earningsCents / 100).toFixed(0)}`,
+                  },
+                ]
+              : [
+                  { label: "Upcoming", value: String(stats.upcoming.length) },
+                  { label: "Today", value: String(stats.today.length) },
+                  { label: "Completed", value: String(stats.completed.length) },
+                  { label: "Cancelled", value: String(stats.cancelled.length) },
+                ]
+          ).map((item) => (
             <div
               key={item.label}
               className="rounded-2xl border border-line bg-surface px-5 py-4"
