@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📅 BooklyAI
+#  BooklyAI
 
 **Intelligent, Conversational Appointment Booking Platform with Zero Double-Bookings**
 
