@@ -13,19 +13,30 @@ import { businessRouter } from "./modules/businesses/business.routes.js";
 import { calendarRouter } from "./modules/calendar/calendar.routes.js";
 import { chatRouter } from "./modules/chat/chat.routes.js";
 import { healthRouter } from "./modules/health/health.routes.js";
+import { marketplaceRouter } from "./modules/marketplace/marketplace.routes.js";
+import { offerRouter } from "./modules/offers/offer.routes.js";
 import { serviceRouter } from "./modules/services/service.routes.js";
+import {
+  ensureUploadsDir,
+  UPLOADS_DIR,
+} from "./modules/uploads/upload.middleware.js";
+import { uploadRouter } from "./modules/uploads/upload.routes.js";
 import { sendError } from "./utils/api-response.js";
 
 export function createApp() {
   const app = express();
+  ensureUploadsDir();
 
   app.disable("x-powered-by");
-  app.use(helmet());
+  // Allow FE (other origin) to load uploaded images in <img>.
+  app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cors(corsOptions));
   app.use(express.json({ limit: "32kb" }));
   app.use(cookieParser());
   app.use(requestLogger);
   app.use(apiRateLimiter);
+
+  app.use("/uploads", express.static(UPLOADS_DIR));
 
   app.use("/health", healthRouter);
   app.use("/api/auth", authRouter);
@@ -33,8 +44,11 @@ export function createApp() {
   app.use("/api/availability", availabilityRouter);
   app.use("/api/calendar", calendarRouter);
   app.use("/api/chat", chatRouter);
+  app.use("/api/marketplace", marketplaceRouter);
   app.use("/api/businesses", businessRouter);
+  app.use("/api/offers", offerRouter);
   app.use("/api/services", serviceRouter);
+  app.use("/api/uploads", uploadRouter);
 
   app.use((_req, res) => {
     sendError(res, 404, "NOT_FOUND", "Route not found.");

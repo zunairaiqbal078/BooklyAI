@@ -12,7 +12,17 @@ export interface User {
   name: string;
   role: UserRole;
   businessId: string | null;
+  onboardingComplete: boolean | null;
 }
+
+export type BusinessCategory =
+  | "SALON"
+  | "CLINIC"
+  | "SPA"
+  | "WELLNESS"
+  | "FITNESS"
+  | "OTHER";
+
 
 export interface Appointment {
   id: string;

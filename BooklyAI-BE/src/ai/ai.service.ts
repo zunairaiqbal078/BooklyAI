@@ -21,22 +21,22 @@ export interface InterpretResult {
   latencyMs: number;
   success: boolean;
   errorCode: string | null;
-  source: "mistral" | "heuristic";
+  source: "groq" | "heuristic";
 }
 
-interface MistralChatResponse {
+interface GroqChatResponse {
   choices?: Array<{ message?: { content?: string } }>;
 }
 
 /**
- * Isolated Mistral client. Interprets natural language into structured intent.
+ * Isolated Groq client (OpenAI-compatible). Interprets natural language into structured intent.
  * Does not query PostgreSQL and does not create appointments.
  */
 export class AiService {
   async interpret(input: InterpretInput): Promise<InterpretResult> {
     const started = Date.now();
 
-    if (!env.MISTRAL_API_KEY || env.NODE_ENV === "test") {
+    if (!env.GROQ_API_KEY || env.NODE_ENV === "test") {
       const intent = heuristicInterpret({
         message: input.message,
         context: input.context,
@@ -52,14 +52,14 @@ export class AiService {
     }
 
     try {
-      const intent = await this.callMistral(input);
+      const intent = await this.callGroq(input);
       return {
         intent,
-        model: env.MISTRAL_MODEL,
+        model: env.GROQ_MODEL,
         latencyMs: Date.now() - started,
         success: true,
         errorCode: null,
-        source: "mistral",
+        source: "groq",
       };
     } catch (error) {
       logger.error(
@@ -67,7 +67,7 @@ export class AiService {
           err: error instanceof Error ? error.message : "unknown",
           event: "ai.failure",
         },
-        "Mistral interpret failed — falling back to heuristic",
+        "Groq interpret failed — falling back to heuristic",
       );
 
       const intent = heuristicInterpret({
@@ -78,24 +78,24 @@ export class AiService {
 
       return {
         intent,
-        model: env.MISTRAL_MODEL,
+        model: env.GROQ_MODEL,
         latencyMs: Date.now() - started,
         success: false,
-        errorCode: "MISTRAL_UNAVAILABLE",
+        errorCode: "GROQ_UNAVAILABLE",
         source: "heuristic",
       };
     }
   }
 
-  private async callMistral(input: InterpretInput): Promise<AiIntent> {
-    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+  private async callGroq(input: InterpretInput): Promise<AiIntent> {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.MISTRAL_API_KEY}`,
+        Authorization: `Bearer ${env.GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: env.MISTRAL_MODEL,
+        model: env.GROQ_MODEL,
         temperature: 0.2,
         response_format: { type: "json_object" },
         messages: [
@@ -114,13 +114,13 @@ export class AiService {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Mistral HTTP ${response.status}: ${body.slice(0, 200)}`);
+      throw new Error(`Groq HTTP ${response.status}: ${body.slice(0, 200)}`);
     }
 
-    const payload = (await response.json()) as MistralChatResponse;
+    const payload = (await response.json()) as GroqChatResponse;
     const content = payload.choices?.[0]?.message?.content;
     if (!content) {
-      throw new Error("Mistral returned an empty response.");
+      throw new Error("Groq returned an empty response.");
     }
 
     const parsed = safeParseAiResponse(content);

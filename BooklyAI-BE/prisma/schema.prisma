@@ -25,6 +25,15 @@ enum ChatRole {
   SYSTEM
 }
 
+enum BusinessCategory {
+  SALON
+  CLINIC
+  SPA
+  WELLNESS
+  FITNESS
+  OTHER
+}
+
 /// Authenticated account. BUSINESS users own exactly one Business via Business.ownerId.
 model User {
   id           String   @id @default(uuid()) @db.Uuid
@@ -37,6 +46,7 @@ model User {
 
   ownedBusiness Business?      @relation("BusinessOwner")
   appointments  Appointment[]  @relation("CustomerAppointments")
+  reviews       Review[]
   chatSessions  ChatSession[]
   aiInteractions AiInteraction[]
 
@@ -46,20 +56,36 @@ model User {
 
 /// Bookable tenant. One owner per business for this prototype.
 model Business {
-  id          String   @id @default(uuid()) @db.Uuid
-  ownerId     String   @unique @map("owner_id") @db.Uuid
-  name        String
-  slug        String   @unique
-  description String?
-  timezone    String   @default("UTC")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                 String           @id @default(uuid()) @db.Uuid
+  ownerId            String           @unique @map("owner_id") @db.Uuid
+  name               String
+  slug               String           @unique
+  description        String?
+  category           BusinessCategory @default(OTHER)
+  city               String?
+  address            String?
+  coverImageUrl      String?          @map("cover_image_url")
+  timezone           String           @default("UTC")
+  isPublished        Boolean          @default(false) @map("is_published")
+  onboardingComplete Boolean          @default(false) @map("onboarding_complete")
+  /// Teaser stats until a full reviews module exists.
+  ratingAvg          Float            @default(0) @map("rating_avg")
+  reviewCount        Int              @default(0) @map("review_count")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
 
   owner             User               @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   services          Service[]
+  offers            Offer[]
+  reviews           Review[]
   availabilityRules AvailabilityRule[]
   appointments      Appointment[]
 
+  @@index([category])
+  @@index([city])
+  @@index([isPublished])
+  @@index([isPublished, city])
+  @@index([isPublished, category])
   @@map("businesses")
 }
 
@@ -70,16 +96,65 @@ model Service {
   name        String
   description String?
   durationMin Int      @map("duration_min")
+  priceCents  Int?     @map("price_cents")
+  imageUrl    String?  @map("image_url")
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   appointments Appointment[]
+  offers       Offer[]
+  reviews      Review[]
 
   @@index([businessId])
   @@index([businessId, isActive])
   @@map("services")
+}
+
+/// Promotional / showcase offer tied to a bookable service (with optional picture).
+model Offer {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  serviceId   String   @map("service_id") @db.Uuid
+  title       String
+  description String?
+  priceCents  Int?     @map("price_cents")
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, isActive])
+  @@index([serviceId])
+  @@map("offers")
+}
+
+/// Customer review after a completed appointment.
+model Review {
+  id            String   @id @default(uuid()) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  serviceId     String   @map("service_id") @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+  appointmentId String   @unique @map("appointment_id") @db.Uuid
+  rating        Int
+  comment       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  customer    User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([serviceId])
+  @@index([customerId])
+  @@index([businessId, createdAt])
+  @@map("reviews")
 }
 
 /// Weekly opening hours. dayOfWeek: 0 = Sunday … 6 = Saturday (JS Date convention).
@@ -106,14 +181,16 @@ model Appointment {
   serviceId  String            @map("service_id") @db.Uuid
   startTime  DateTime          @map("start_time")
   endTime    DateTime          @map("end_time")
-  status     AppointmentStatus @default(PENDING)
-  notes      String?
-  createdAt  DateTime          @default(now()) @map("created_at")
-  updatedAt  DateTime          @updatedAt @map("updated_at")
+  status          AppointmentStatus @default(PENDING)
+  notes           String?
+  reviewRequested Boolean           @default(false) @map("review_requested")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer User     @relation("CustomerAppointments", fields: [customerId], references: [id], onDelete: Cascade)
   service  Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  review   Review?
 
   @@index([customerId])
   @@index([businessId])

@@ -6,7 +6,7 @@ const app = createApp();
 
 app.listen(env.PORT, () => {
   logger.info(
-    { port: env.PORT, env: env.NODE_ENV, phase: 9 },
+    { port: env.PORT, env: env.NODE_ENV },
     "BooklyAI API listening",
   );
 });

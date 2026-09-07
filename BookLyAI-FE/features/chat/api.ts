@@ -32,6 +32,20 @@ export type ChatMessageMeta =
   | { type: "appointment"; appointment: AppointmentDetail }
   | { type: "appointment_list"; appointments: AppointmentDetail[] }
   | {
+      type: "business_summary";
+      summary: {
+        total: number;
+        upcoming: number;
+        today: number;
+        pending: number;
+        confirmed: number;
+        completed: number;
+        cancelled: number;
+        paidCount: number;
+        paidRevenueCents: number;
+      };
+    }
+  | {
       type: "fallback_form";
       form: {
         businessId: string;

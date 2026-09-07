@@ -16,6 +16,7 @@ export class ServiceCatalogService {
         name: true,
         description: true,
         durationMin: true,
+        priceCents: true,
       },
     });
   }

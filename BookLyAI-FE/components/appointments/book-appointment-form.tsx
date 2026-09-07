@@ -19,13 +19,22 @@ import { ApiError } from "@/types";
 
 interface BookAppointmentFormProps {
   onBooked: () => Promise<void> | void;
+  /** Lock the form to one business (e.g. marketplace public page). */
+  lockedBusinessId?: string;
+  lockedBusinessName?: string;
+  initialServiceId?: string;
 }
 
-export function BookAppointmentForm({ onBooked }: BookAppointmentFormProps) {
+export function BookAppointmentForm({
+  onBooked,
+  lockedBusinessId,
+  lockedBusinessName,
+  initialServiceId,
+}: BookAppointmentFormProps) {
   const [businesses, setBusinesses] = useState<BusinessSummary[]>([]);
   const [services, setServices] = useState<ServiceSummary[]>([]);
-  const [businessId, setBusinessId] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [businessId, setBusinessId] = useState(lockedBusinessId ?? "");
+  const [serviceId, setServiceId] = useState(initialServiceId ?? "");
   const [date, setDate] = useState("");
   const [slots, setSlots] = useState<string[]>([]);
   const [time, setTime] = useState("");
@@ -39,15 +48,29 @@ export function BookAppointmentForm({ onBooked }: BookAppointmentFormProps) {
     setLoadingMeta(true);
     setError(null);
     try {
-      const { businesses: rows } = await listBusinesses();
-      setBusinesses(rows);
-      if (rows[0]) setBusinessId(rows[0].id);
+      if (lockedBusinessId) {
+        setBusinessId(lockedBusinessId);
+        setBusinesses([
+          {
+            id: lockedBusinessId,
+            name: lockedBusinessName ?? "Selected business",
+            slug: "",
+            description: null,
+            timezone: "UTC",
+            activeServiceCount: 0,
+          },
+        ]);
+      } else {
+        const { businesses: rows } = await listBusinesses();
+        setBusinesses(rows);
+        if (rows[0]) setBusinessId(rows[0].id);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load businesses.");
     } finally {
       setLoadingMeta(false);
     }
-  }, []);
+  }, [lockedBusinessId, lockedBusinessName]);
 
   useLoadWhen(true, boot);
 
@@ -60,7 +83,13 @@ export function BookAppointmentForm({ onBooked }: BookAppointmentFormProps) {
           const { services: rows } = await listBusinessServices(businessId);
           if (cancelled) return;
           setServices(rows);
-          setServiceId(rows[0]?.id ?? "");
+          setServiceId((current) => {
+            if (initialServiceId && rows.some((row) => row.id === initialServiceId)) {
+              return initialServiceId;
+            }
+            if (current && rows.some((row) => row.id === current)) return current;
+            return rows[0]?.id ?? "";
+          });
         } catch (err) {
           if (!cancelled) {
             setError(err instanceof ApiError ? err.message : "Could not load services.");
@@ -72,7 +101,7 @@ export function BookAppointmentForm({ onBooked }: BookAppointmentFormProps) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [businessId]);
+  }, [businessId, initialServiceId]);
 
   const canLoadSlots = Boolean(businessId && serviceId && date);
 
@@ -137,9 +166,9 @@ export function BookAppointmentForm({ onBooked }: BookAppointmentFormProps) {
       className="space-y-5 rounded-2xl border border-line bg-surface p-6"
     >
       <div>
-        <h2 className="text-lg font-medium">Complete your appointment</h2>
+        <h2 className="text-lg font-medium">Book manually</h2>
         <p className="mt-1 text-sm text-muted">
-          Availability comes from the calendar — slots never overlap.
+          Pick a service and open slot — overlaps are blocked automatically.
         </p>
       </div>
 
@@ -150,7 +179,8 @@ export function BookAppointmentForm({ onBooked }: BookAppointmentFormProps) {
             id="business"
             value={businessId}
             onChange={(e) => setBusinessId(e.target.value)}
-            className="w-full rounded-xl border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent"
+            disabled={Boolean(lockedBusinessId)}
+            className="w-full rounded-xl border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent disabled:opacity-70"
           >
             {businesses.map((business) => (
               <option key={business.id} value={business.id}>

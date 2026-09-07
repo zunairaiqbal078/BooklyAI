@@ -9,8 +9,11 @@ const envSchema = z.object({
   JWT_EXPIRES_IN_DAYS: z.coerce.number().int().positive().default(7),
   AUTH_COOKIE_NAME: z.string().min(1).default("booklyai_token"),
   FRONTEND_URL: z.string().url(),
-  MISTRAL_API_KEY: z.string().default(""),
-  MISTRAL_MODEL: z.string().default("mistral-small-latest"),
+  /** Public origin for uploaded files (defaults to http://localhost:PORT). */
+  PUBLIC_API_URL: z.string().url().optional(),
+  GROQ_API_KEY: z.string().default(""),
+  /** Groq retired llama-3.1-8b-instant (Aug 2026). Prefer openai/gpt-oss-20b. */
+  GROQ_MODEL: z.string().default("openai/gpt-oss-20b"),
 });
 
 export type Env = z.infer<typeof envSchema>;

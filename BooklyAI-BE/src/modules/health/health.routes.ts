@@ -7,6 +7,6 @@ healthRouter.get("/", (_req, res) => {
   sendSuccess(res, {
     status: "ok",
     service: "booklyai-api",
-    phase: 9,
+    phase: 10,
   });
 });

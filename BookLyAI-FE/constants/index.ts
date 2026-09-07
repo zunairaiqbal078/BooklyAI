@@ -9,11 +9,31 @@ export const ROUTES = {
   assistant: "/assistant",
   appointments: "/appointments",
   calendar: "/calendar",
+  explore: "/explore",
+  onboarding: "/onboarding",
+  catalog: "/catalog",
+  business: (slug: string) => `/businesses/${slug}`,
 } as const;
 
+export const BUSINESS_CATEGORIES = [
+  { value: "SALON", label: "Salon" },
+  { value: "CLINIC", label: "Clinic" },
+  { value: "SPA", label: "Spa" },
+  { value: "WELLNESS", label: "Wellness" },
+  { value: "FITNESS", label: "Fitness" },
+  { value: "OTHER", label: "Other" },
+] as const;
+
 export const SUGGESTED_PROMPTS = [
-  "Book an appointment tomorrow",
+  "Book a haircut in Austin tomorrow",
+  "Show wellness clinics near me",
   "Show my upcoming appointments",
-  "I need a consultation this week",
   "Find me an afternoon appointment",
+] as const;
+
+export const BUSINESS_SUGGESTED_PROMPTS = [
+  "What are my upcoming appointments?",
+  "Summarize today's schedule",
+  "How many total appointments do I have?",
+  "Show completed / paid appointments",
 ] as const;

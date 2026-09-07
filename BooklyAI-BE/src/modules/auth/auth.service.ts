@@ -14,32 +14,33 @@ type DbClient = Prisma.TransactionClient | typeof prisma;
 
 function toAuthUser(
   user: Pick<User, "id" | "email" | "name" | "role">,
-  businessId: string | null,
+  business: { id: string; onboardingComplete: boolean } | null,
 ): AuthUser {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
-    businessId,
+    businessId: business?.id ?? null,
+    onboardingComplete: user.role === "BUSINESS" ? (business?.onboardingComplete ?? false) : null,
   };
 }
 
-async function resolveBusinessId(
+async function resolveBusiness(
   userId: string,
   role: UserRole,
   db: DbClient = prisma,
-): Promise<string | null> {
+): Promise<{ id: string; onboardingComplete: boolean } | null> {
   if (role !== "BUSINESS") {
     return null;
   }
 
   const business = await db.business.findUnique({
     where: { ownerId: userId },
-    select: { id: true },
+    select: { id: true, onboardingComplete: true },
   });
 
-  return business?.id ?? null;
+  return business;
 }
 
 async function uniqueBusinessSlug(name: string, db: DbClient = prisma): Promise<string> {
@@ -87,27 +88,32 @@ export class AuthService {
         },
       });
 
-      let businessId: string | null = null;
+      let business: { id: string; onboardingComplete: boolean } | null = null;
 
       if (input.role === "BUSINESS") {
         const businessName = input.businessName ?? "Business";
         const slug = await uniqueBusinessSlug(businessName, tx);
-        const business = await tx.business.create({
+        const createdBusiness = await tx.business.create({
           data: {
             ownerId: user.id,
             name: businessName,
             slug,
             timezone: "UTC",
+            onboardingComplete: false,
+            isPublished: false,
           },
         });
-        businessId = business.id;
+        business = {
+          id: createdBusiness.id,
+          onboardingComplete: createdBusiness.onboardingComplete,
+        };
       }
 
-      return { user, businessId };
+      return { user, business };
     });
 
     const token = signAccessToken({ sub: created.user.id, role: created.user.role });
-    const user = toAuthUser(created.user, created.businessId);
+    const user = toAuthUser(created.user, created.business);
 
     logger.info(
       { userId: user.id, role: user.role, event: "auth.register" },
@@ -131,9 +137,9 @@ export class AuthService {
       throw new UnauthorizedError("Invalid email or password.");
     }
 
-    const businessId = await resolveBusinessId(user.id, user.role);
+    const business = await resolveBusiness(user.id, user.role);
     const token = signAccessToken({ sub: user.id, role: user.role });
-    const authUser = toAuthUser(user, businessId);
+    const authUser = toAuthUser(user, business);
 
     logger.info({ userId: user.id, role: user.role, event: "auth.login" }, "User logged in");
 
@@ -150,8 +156,8 @@ export class AuthService {
       throw new UnauthorizedError("Session is no longer valid.");
     }
 
-    const businessId = await resolveBusinessId(user.id, user.role);
-    return toAuthUser(user, businessId);
+    const business = await resolveBusiness(user.id, user.role);
+    return toAuthUser(user, business);
   }
 
   async getUserFromTokenSubject(userId: string): Promise<AuthUser> {

@@ -17,6 +17,7 @@ export const logger = pino({
       "token",
       "jwt",
       "secret",
+      "GROQ_API_KEY",
       "MISTRAL_API_KEY",
       "*.password",
       "*.token",

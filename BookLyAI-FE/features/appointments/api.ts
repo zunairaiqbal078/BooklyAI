@@ -10,6 +10,8 @@ export interface AppointmentDetail extends Appointment {
   serviceId: string;
   durationMin: number;
   notes: string | null;
+  reviewRequested: boolean;
+  hasReview: boolean;
   createdAt: string;
 }
 
@@ -27,6 +29,8 @@ export interface BusinessSummary {
   slug: string;
   description: string | null;
   timezone: string;
+  category?: string;
+  city?: string | null;
   activeServiceCount: number;
 }
 
@@ -36,6 +40,7 @@ export interface ServiceSummary {
   name: string;
   description: string | null;
   durationMin: number;
+  priceCents?: number | null;
 }
 
 export function listAppointments(status?: AppointmentStatus) {
@@ -63,6 +68,28 @@ export function cancelAppointment(id: string) {
   return api<{ appointment: AppointmentDetail }>(`/api/appointments/${id}/cancel`, {
     method: "PATCH",
   });
+}
+
+export function completeAppointment(id: string) {
+  return api<{ appointment: AppointmentDetail }>(`/api/appointments/${id}/complete`, {
+    method: "PATCH",
+  });
+}
+
+export function requestReview(id: string) {
+  return api<{ appointment: AppointmentDetail }>(`/api/appointments/${id}/request-review`, {
+    method: "PATCH",
+  });
+}
+
+export function createReview(appointmentId: string, input: { rating: number; comment?: string }) {
+  return api<{ review: { id: string; rating: number; comment: string | null } }>(
+    `/api/appointments/${appointmentId}/reviews`,
+    {
+      method: "POST",
+      body: input,
+    },
+  );
 }
 
 export function getAvailability(params: {

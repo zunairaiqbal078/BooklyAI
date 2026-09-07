@@ -51,7 +51,11 @@ export function SignupForm() {
         ...(role === "BUSINESS" ? { businessName } : {}),
       });
       setUser(user);
-      router.push(ROUTES.dashboard);
+      router.push(
+        user.role === "BUSINESS" && !user.onboardingComplete
+          ? ROUTES.onboarding
+          : ROUTES.dashboard,
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to create your account.");
     } finally {

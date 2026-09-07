@@ -31,6 +31,18 @@ export class AppointmentController {
     const appointment = await appointmentService.cancel(req.user!, params.id);
     sendSuccess(res, { appointment });
   }
+
+  async complete(req: Request, res: Response): Promise<void> {
+    const params = (req.validatedParams ?? req.params) as { id: string };
+    const appointment = await appointmentService.complete(req.user!, params.id);
+    sendSuccess(res, { appointment });
+  }
+
+  async requestReview(req: Request, res: Response): Promise<void> {
+    const params = (req.validatedParams ?? req.params) as { id: string };
+    const appointment = await appointmentService.requestReview(req.user!, params.id);
+    sendSuccess(res, { appointment });
+  }
 }
 
 export const appointmentController = new AppointmentController();

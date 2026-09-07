@@ -8,6 +8,7 @@ import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
+import { BUSINESS_SUGGESTED_PROMPTS, ROUTES, SUGGESTED_PROMPTS } from "@/constants";
 import {
   bookFromFallbackForm,
   sendChatMessage,
@@ -16,8 +17,6 @@ import {
 import { useAuth } from "@/features/auth/auth-provider";
 import { useChatStore } from "@/stores/chat.store";
 import { ApiError } from "@/types";
-import Link from "next/link";
-import { ROUTES } from "@/constants";
 
 export function AssistantView() {
   const { user } = useAuth();
@@ -35,6 +34,8 @@ export function AssistantView() {
     setLastFailedMessage,
     reset,
   } = useChatStore();
+
+  const isBusiness = user?.role === "BUSINESS";
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -61,7 +62,6 @@ export function AssistantView() {
           message: text,
         });
         setSessionId(result.sessionId);
-        // Replace optimistic user bubble with server versions
         useChatStore.setState((state) => ({
           messages: [
             ...state.messages.filter((m) => m.id !== optimisticUser.id),
@@ -112,27 +112,6 @@ export function AssistantView() {
 
   if (!user) return null;
 
-  if (user.role === "BUSINESS") {
-    return (
-      <AppShell>
-        <div className="mx-auto max-w-lg rounded-2xl border border-line bg-surface px-8 py-12 text-center">
-          <h1 className="font-display text-3xl tracking-tight">Assistant is for customers</h1>
-          <p className="mt-3 text-sm leading-6 text-muted">
-            Business accounts manage bookings from the calendar and appointments pages.
-          </p>
-          <div className="mt-7 flex justify-center gap-3">
-            <Link href={ROUTES.calendar}>
-              <Button>Open calendar</Button>
-            </Link>
-            <Link href={ROUTES.appointments}>
-              <Button variant="secondary">Appointments</Button>
-            </Link>
-          </div>
-        </div>
-      </AppShell>
-    );
-  }
-
   return (
     <AppShell dense hideFooter>
       <div className="mx-auto flex h-[calc(100dvh-10.5rem)] max-w-3xl flex-col sm:h-[calc(100dvh-9rem)]">
@@ -140,10 +119,12 @@ export function AssistantView() {
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">Assistant</p>
             <h1 className="mt-2 font-display text-3xl tracking-tight sm:text-4xl">
-              Book with conversation
+              {isBusiness ? "Business insights" : "Book with conversation"}
             </h1>
             <p className="mt-2 text-sm text-muted">
-              Availability always comes from the calendar — never invented by the model.
+              {isBusiness
+                ? "Ask about upcoming schedules, totals, completed bookings, and today’s calendar."
+                : "Availability always comes from the calendar — never invented by the model."}
             </p>
           </div>
           {messages.length > 0 ? (
@@ -162,13 +143,28 @@ export function AssistantView() {
             {messages.length === 0 && !isThinking ? (
               <div className="space-y-6 py-4">
                 <div className="rounded-2xl border border-dashed border-line bg-background px-5 py-8 text-center">
-                  <p className="font-display text-2xl tracking-tight">How can I help you book?</p>
-                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
-                    Ask in plain language, pick a real slot, and confirm. If anything is unclear,
-                    a form appears so you never get stuck.
+                  <p className="font-display text-2xl tracking-tight">
+                    {isBusiness ? "Ask about your business account" : "How can I help you book?"}
                   </p>
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+                    {isBusiness
+                      ? "Upcoming appointments, today’s schedule, totals by status, and completed (paid) visits."
+                      : "Ask in plain language, pick a real slot, and confirm. Explore services by city anytime."}
+                  </p>
+                  {!isBusiness ? (
+                    <a
+                      href={ROUTES.explore}
+                      className="mt-4 inline-block text-sm text-accent hover:text-accent-hover"
+                    >
+                      Browse Explore →
+                    </a>
+                  ) : null}
                 </div>
-                <SuggestedPrompts disabled={isThinking} onSelect={(prompt) => void send(prompt)} />
+                <SuggestedPrompts
+                  prompts={isBusiness ? BUSINESS_SUGGESTED_PROMPTS : SUGGESTED_PROMPTS}
+                  disabled={isThinking}
+                  onSelect={(prompt) => void send(prompt)}
+                />
               </div>
             ) : null}
 

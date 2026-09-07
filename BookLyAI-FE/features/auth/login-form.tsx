@@ -39,7 +39,11 @@ export function LoginForm() {
     try {
       const { user } = await login({ email, password });
       setUser(user);
-      router.push(ROUTES.dashboard);
+      router.push(
+        user.role === "BUSINESS" && !user.onboardingComplete
+          ? ROUTES.onboarding
+          : ROUTES.dashboard,
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Unable to log in. Please try again.");
     } finally {

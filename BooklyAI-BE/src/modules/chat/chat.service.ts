@@ -1,10 +1,10 @@
-import type { ChatRole, Prisma } from "@prisma/client";
+import type { InputJsonValue, JsonValue } from "@prisma/client/runtime/library";
 import { aiService } from "../../ai/ai.service.js";
-import type { AiIntent, BookingDraft } from "../../ai/ai.schema.js";
+import type { AiCatalogContext, AiIntent, BookingDraft } from "../../ai/ai.schema.js";
 import { prisma } from "../../config/database.js";
 import { logger } from "../../config/logger.js";
 import type { AuthUser } from "../../types/index.js";
-import { ForbiddenError, NotFoundError, ValidationError } from "../../utils/app-error.js";
+import { ForbiddenError, NotFoundError } from "../../utils/app-error.js";
 import { combineDateAndTimeUtc } from "../../utils/time.js";
 import {
   appointmentService,
@@ -13,10 +13,28 @@ import {
 import { availabilityService } from "../availability/availability.service.js";
 import type { ChatMessageInput, FallbackBookInput } from "./chat.schema.js";
 
+type ChatRole = "USER" | "ASSISTANT" | "SYSTEM";
+
 const HISTORY_LIMIT = 12;
 
-function asJson(value: unknown): Prisma.InputJsonValue {
-  return value as Prisma.InputJsonValue;
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || fullName;
+}
+
+function accountInfoReply(account: AiCatalogContext["account"]): string {
+  const name = account.name;
+  if (account.role === "BUSINESS") {
+    const biz = account.ownedBusiness;
+    if (!biz) {
+      return `${name}, you're signed in as a business owner (${account.email}). Finish onboarding to publish your business profile.`;
+    }
+    return `${name}, you're signed in as the owner of ${biz.name} (${biz.category}${biz.city ? ` · ${biz.city}` : ""}). Account email: ${account.email}. Published: ${biz.isPublished ? "yes" : "no"}.`;
+  }
+  return `${name}, you're signed in as a customer. Account email: ${account.email}.`;
+}
+
+function asJson(value: unknown): InputJsonValue {
+  return value as InputJsonValue;
 }
 
 export type ChatMessageMeta =
@@ -39,6 +57,20 @@ export type ChatMessageMeta =
   | {
       type: "appointment_list";
       appointments: AppointmentDto[];
+    }
+  | {
+      type: "business_summary";
+      summary: {
+        total: number;
+        upcoming: number;
+        today: number;
+        pending: number;
+        confirmed: number;
+        completed: number;
+        cancelled: number;
+        paidCount: number;
+        paidRevenueCents: number;
+      };
     }
   | {
       type: "fallback_form";
@@ -73,7 +105,7 @@ function toMessageDto(row: {
   role: ChatRole;
   content: string;
   createdAt: Date;
-  metadata: Prisma.JsonValue | null;
+  metadata: JsonValue | null;
 }): ChatMessageDto {
   return {
     id: row.id,
@@ -95,7 +127,7 @@ function emptyDraft(): BookingDraft {
   };
 }
 
-function readDraft(metadata: Prisma.JsonValue | null): BookingDraft {
+function readDraft(metadata: JsonValue | null): BookingDraft {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return emptyDraft();
   }
@@ -133,8 +165,8 @@ export class ChatService {
   }
 
   async sendMessage(user: AuthUser, input: ChatMessageInput): Promise<ChatTurnResult> {
-    if (user.role !== "CUSTOMER") {
-      throw new ForbiddenError("The booking assistant is available to customers.");
+    if (user.role !== "CUSTOMER" && user.role !== "BUSINESS") {
+      throw new ForbiddenError("Assistant access is not available for this account.");
     }
 
     const session = input.sessionId
@@ -162,35 +194,162 @@ export class ChatService {
     });
     const history = historyRows
       .reverse()
-      .filter((row) => row.id !== userMessage.id)
-      .map((row) => ({
+      .filter((row: { id: string }) => row.id !== userMessage.id)
+      .map((row: { role: ChatRole; content: string }) => ({
         role: (row.role === "USER" ? "user" : "assistant") as "user" | "assistant",
         content: row.content,
       }));
 
-    const [businesses, services] = await Promise.all([
-      prisma.business.findMany({
-        select: { id: true, name: true, slug: true },
-        orderBy: { name: "asc" },
-      }),
-      prisma.service.findMany({
-        where: { isActive: true },
-        select: { id: true, businessId: true, name: true, durationMin: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
-
-    let draft = readDraft(session.metadata);
     const today = new Date().toISOString().slice(0, 10);
+    let draft = readDraft(session.metadata);
+
+    let businesses: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      category: string;
+      city: string | null;
+      description: string | null;
+    }> = [];
+    let services: Array<{
+      id: string;
+      businessId: string;
+      name: string;
+      durationMin: number;
+      priceCents: number | null;
+    }> = [];
+    let businessStats: {
+      total: number;
+      upcoming: number;
+      today: number;
+      completed: number;
+      cancelled: number;
+      paidCount: number;
+      paidRevenueCents: number;
+    } | null = null;
+
+    let ownedBusiness: {
+      id: string;
+      name: string;
+      slug: string;
+      category: string;
+      city: string | null;
+      address: string | null;
+      isPublished: boolean;
+      onboardingComplete: boolean;
+    } | null = null;
+
+    if (user.role === "CUSTOMER") {
+      [businesses, services] = await Promise.all([
+        prisma.business.findMany({
+          where: { isPublished: true, onboardingComplete: true },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            category: true,
+            city: true,
+            description: true,
+          },
+          orderBy: { name: "asc" },
+        }),
+        prisma.service.findMany({
+          where: {
+            isActive: true,
+            business: { isPublished: true, onboardingComplete: true },
+          },
+          select: {
+            id: true,
+            businessId: true,
+            name: true,
+            durationMin: true,
+            priceCents: true,
+          },
+          orderBy: { name: "asc" },
+        }),
+      ]);
+    } else {
+      const summary = await appointmentService.summarizeForBusiness(user);
+      businessStats = {
+        total: summary.total,
+        upcoming: summary.upcoming,
+        today: summary.today,
+        completed: summary.completed,
+        cancelled: summary.cancelled,
+        paidCount: summary.paidCount,
+        paidRevenueCents: summary.paidRevenueCents,
+      };
+      if (user.businessId) {
+        const owned = await prisma.business.findUnique({
+          where: { id: user.businessId },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            category: true,
+            city: true,
+            address: true,
+            description: true,
+            isPublished: true,
+            onboardingComplete: true,
+          },
+        });
+        if (owned) {
+          ownedBusiness = {
+            id: owned.id,
+            name: owned.name,
+            slug: owned.slug,
+            category: owned.category,
+            city: owned.city,
+            address: owned.address,
+            isPublished: owned.isPublished,
+            onboardingComplete: owned.onboardingComplete,
+          };
+          businesses = [
+            {
+              id: owned.id,
+              name: owned.name,
+              slug: owned.slug,
+              category: owned.category,
+              city: owned.city,
+              description: owned.description,
+            },
+          ];
+        }
+        services = await prisma.service.findMany({
+          where: { businessId: user.businessId, isActive: true },
+          select: {
+            id: true,
+            businessId: true,
+            name: true,
+            durationMin: true,
+            priceCents: true,
+          },
+        });
+      }
+    }
+
+    const account = {
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      businessId: user.businessId,
+      onboardingComplete: user.onboardingComplete,
+      ownedBusiness,
+    };
 
     const aiResult = await aiService.interpret({
       message: input.message,
       history,
       context: {
         today,
+        role: user.role,
+        account,
         businesses,
         services,
-        draft,
+        draft: user.role === "CUSTOMER" ? draft : null,
+        businessStats,
       },
     });
 
@@ -207,6 +366,7 @@ export class ChatService {
           source: aiResult.source,
           confidence: aiResult.intent.confidence,
           missingFields: aiResult.intent.missingFields,
+          role: user.role,
         }),
       },
     });
@@ -219,19 +379,31 @@ export class ChatService {
         success: aiResult.success,
         source: aiResult.source,
         latencyMs: aiResult.latencyMs,
+        role: user.role,
       },
       "AI interpret completed",
     );
 
-    draft = this.mergeDraft(draft, aiResult.intent, services, businesses);
-    const outcome = await this.executeIntent({
-      user,
-      intent: aiResult.intent,
-      draft,
-      services,
-    });
+    let outcome: { reply: string; metadata: ChatMessageMeta; draft: BookingDraft };
 
-    draft = outcome.draft;
+    if (user.role === "BUSINESS") {
+      outcome = await this.executeBusinessIntent({
+        user,
+        intent: aiResult.intent,
+        account,
+      });
+      draft = emptyDraft();
+    } else {
+      draft = this.mergeDraft(draft, aiResult.intent, services, businesses);
+      outcome = await this.executeIntent({
+        user,
+        intent: aiResult.intent,
+        draft,
+        services,
+        account,
+      });
+      draft = outcome.draft;
+    }
 
     const assistantMessage = await prisma.chatMessage.create({
       data: {
@@ -254,7 +426,7 @@ export class ChatService {
       sessionId: session.id,
       userMessage: toMessageDto(userMessage),
       assistantMessage: toMessageDto(assistantMessage),
-      draft,
+      draft: user.role === "CUSTOMER" ? draft : emptyDraft(),
     };
   }
 
@@ -334,16 +506,21 @@ export class ChatService {
 
     if (intent.businessId) {
       next.businessId = intent.businessId;
-    } else if (!next.businessId && businesses[0]) {
-      next.businessId = businesses[0].id;
+    } else if (!next.businessId && businesses.length === 1) {
+      next.businessId = businesses[0]!.id;
     }
 
     if (intent.service) {
-      const matched = services.find(
-        (service) => service.name.toLowerCase() === intent.service!.toLowerCase(),
-      ) ?? services.find((service) =>
-        service.name.toLowerCase().includes(intent.service!.toLowerCase()),
-      );
+      const scoped = next.businessId
+        ? services.filter((service) => service.businessId === next.businessId)
+        : services;
+      const matched =
+        scoped.find(
+          (service) => service.name.toLowerCase() === intent.service!.toLowerCase(),
+        ) ??
+        scoped.find((service) =>
+          service.name.toLowerCase().includes(intent.service!.toLowerCase()),
+        );
       if (matched) {
         next.serviceId = matched.id;
         next.serviceName = matched.name;
@@ -363,14 +540,100 @@ export class ChatService {
     return next;
   }
 
+  private async executeBusinessIntent(params: {
+    user: AuthUser;
+    intent: AiIntent;
+    account: AiCatalogContext["account"];
+  }): Promise<{ reply: string; metadata: ChatMessageMeta; draft: BookingDraft }> {
+    const { user, intent, account } = params;
+    const draft = emptyDraft();
+    const greet = firstName(account.name);
+
+    if (intent.intent === "out_of_context") {
+      return { reply: intent.reply, metadata: { type: "text" }, draft };
+    }
+
+    if (intent.intent === "account_info") {
+      return {
+        reply: accountInfoReply(account),
+        metadata: { type: "text" },
+        draft,
+      };
+    }
+
+    if (intent.intent === "list_appointments") {
+      const appointments = await appointmentService.list(user, { status: "CONFIRMED" });
+      const upcoming = appointments.filter(
+        (appt) => new Date(appt.startTime).getTime() >= Date.now(),
+      );
+      const pending = await appointmentService.list(user, { status: "PENDING" });
+      const pendingUpcoming = pending.filter(
+        (appt) => new Date(appt.startTime).getTime() >= Date.now(),
+      );
+      const combined = [...upcoming, ...pendingUpcoming].sort(
+        (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+      );
+      const bizLabel = account.ownedBusiness?.name ?? "your business";
+
+      return {
+        reply:
+          combined.length > 0
+            ? `${greet}, ${bizLabel} has ${combined.length} upcoming appointment${combined.length === 1 ? "" : "s"}.`
+            : `${greet}, ${bizLabel} has no upcoming appointments right now.`,
+        metadata: { type: "appointment_list", appointments: combined },
+        draft,
+      };
+    }
+
+    // Default + business_summary / small_talk / unknown → account summary
+    const summary = await appointmentService.summarizeForBusiness(user);
+    const revenue =
+      summary.paidRevenueCents > 0
+        ? ` Completed/paid visits: ${summary.paidCount} (≈ $${(summary.paidRevenueCents / 100).toFixed(0)} from listed prices).`
+        : ` Completed/paid visits: ${summary.paidCount}.`;
+    const bizLabel = account.ownedBusiness?.name ?? "Your business";
+
+    return {
+      reply:
+        intent.intent === "business_summary" || intent.confidence >= 0.7
+          ? `${greet} — ${bizLabel} summary: ${summary.total} total · ${summary.upcoming} upcoming · ${summary.today} today · ${summary.confirmed} confirmed · ${summary.pending} pending · ${summary.cancelled} cancelled.${revenue}`
+          : intent.reply,
+      metadata: {
+        type: "business_summary",
+        summary: {
+          total: summary.total,
+          upcoming: summary.upcoming,
+          today: summary.today,
+          pending: summary.pending,
+          confirmed: summary.confirmed,
+          completed: summary.completed,
+          cancelled: summary.cancelled,
+          paidCount: summary.paidCount,
+          paidRevenueCents: summary.paidRevenueCents,
+        },
+      },
+      draft,
+    };
+  }
+
   private async executeIntent(params: {
     user: AuthUser;
     intent: AiIntent;
     draft: BookingDraft;
     services: Array<{ id: string; businessId: string; name: string; durationMin: number }>;
+    account: AiCatalogContext["account"];
   }): Promise<{ reply: string; metadata: ChatMessageMeta; draft: BookingDraft }> {
-    const { user, intent } = params;
+    const { user, intent, account } = params;
     let draft = params.draft;
+    const greet = firstName(account.name);
+
+    if (intent.intent === "account_info") {
+      return {
+        reply: accountInfoReply(account),
+        metadata: { type: "text" },
+        draft,
+      };
+    }
 
     if (intent.intent === "list_appointments") {
       const appointments = await appointmentService.list(user, { status: "CONFIRMED" });
@@ -380,8 +643,8 @@ export class ChatService {
       return {
         reply:
           upcoming.length > 0
-            ? `You have ${upcoming.length} upcoming appointment${upcoming.length === 1 ? "" : "s"}.`
-            : "You don't have any upcoming appointments.",
+            ? `${greet}, you have ${upcoming.length} upcoming appointment${upcoming.length === 1 ? "" : "s"}.`
+            : `${greet}, you don't have any upcoming appointments.`,
         metadata: { type: "appointment_list", appointments: upcoming },
         draft,
       };
@@ -399,6 +662,14 @@ export class ChatService {
     }
 
     if (intent.intent === "cancel_appointment") {
+      return {
+        reply: intent.reply,
+        metadata: { type: "text" },
+        draft,
+      };
+    }
+
+    if (intent.intent === "out_of_context") {
       return {
         reply: intent.reply,
         metadata: { type: "text" },
@@ -579,7 +850,14 @@ export class ChatService {
     intent: AiIntent,
   ): { reply: string; metadata: ChatMessageMeta; draft: BookingDraft } {
     if (!draft.businessId) {
-      throw new ValidationError("No bookable business is configured yet.");
+      return {
+        reply:
+          intent.missingFields.includes("business") || !intent.businessId
+            ? `${intent.reply} Browse Explore to pick a business by city, or name the salon/clinic you want.`
+            : intent.reply,
+        metadata: { type: "text" },
+        draft,
+      };
     }
 
     return {

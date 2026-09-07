@@ -4,11 +4,24 @@ import { parseAiResponse, safeParseAiResponse } from "./ai.parser.js";
 
 const context = {
   today: "2026-09-07",
+  role: "CUSTOMER" as const,
+  account: {
+    userId: "11111111-1111-4111-8111-111111111111",
+    name: "Ava Chen",
+    email: "customer@booklyai.dev",
+    role: "CUSTOMER" as const,
+    businessId: null,
+    onboardingComplete: null,
+    ownedBusiness: null,
+  },
   businesses: [
     {
       id: "33333333-3333-4333-8333-333333333333",
       name: "Northside Wellness",
       slug: "northside-wellness",
+      category: "WELLNESS",
+      city: "Austin",
+      description: "Consultations and follow-ups.",
     },
   ],
   services: [
@@ -17,6 +30,7 @@ const context = {
       businessId: "33333333-3333-4333-8333-333333333333",
       name: "General consultation",
       durationMin: 45,
+      priceCents: 9000,
     },
   ],
   draft: null,
@@ -80,5 +94,22 @@ describe("heuristicInterpret", () => {
     });
     expect(intent.intent).toBe("confirm_booking");
     expect(intent.confirm).toBe(true);
+  });
+
+  it("refuses out-of-context questions", () => {
+    const intent = heuristicInterpret({
+      message: "Who is the president?",
+      context,
+    });
+    expect(intent.intent).toBe("out_of_context");
+    expect(intent.reply.toLowerCase()).toContain("out of context");
+  });
+
+  it("returns account info for the signed-in customer", () => {
+    const intent = heuristicInterpret({
+      message: "Who am I?",
+      context,
+    });
+    expect(intent.intent).toBe("account_info");
   });
 });

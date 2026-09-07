@@ -1,5 +1,6 @@
 import { AppointmentListCard } from "@/components/chat/appointment-list-card";
 import { AppointmentResultCard } from "@/components/chat/appointment-result-card";
+import { BusinessSummaryCard } from "@/components/chat/business-summary-card";
 import { ChatFallbackForm } from "@/components/chat/chat-fallback-form";
 import { ConfirmationCard } from "@/components/chat/confirmation-card";
 import { SlotPickerCard } from "@/components/chat/slot-picker-card";
@@ -78,6 +79,10 @@ export function ChatMessageBubble({
 
         {!isUser && message.metadata?.type === "appointment_list" ? (
           <AppointmentListCard appointments={message.metadata.appointments} />
+        ) : null}
+
+        {!isUser && message.metadata?.type === "business_summary" ? (
+          <BusinessSummaryCard summary={message.metadata.summary} />
         ) : null}
 
         {!isUser && message.metadata?.type === "fallback_form" ? (

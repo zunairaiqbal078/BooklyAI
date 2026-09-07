@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { ROUTES } from "@/constants";
 import { getMe, logout as logoutRequest } from "@/features/auth/api";
 import { useAuthStore } from "@/stores/auth.store";
 import type { User } from "@/types";
@@ -16,6 +18,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const isLoading = useAuthStore((state) => state.isLoading);
   const setUser = useAuthStore((state) => state.setUser);
@@ -43,8 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await logoutRequest();
     } finally {
       setUser(null);
+      router.replace(ROUTES.home);
     }
-  }, [setUser]);
+  }, [router, setUser]);
 
   const value = useMemo(
     () => ({

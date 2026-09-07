@@ -74,6 +74,24 @@ export function DashboardView() {
 
   if (!user) return null;
 
+  if (user.role === "BUSINESS" && user.onboardingComplete === false) {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-lg rounded-2xl border border-line bg-surface px-8 py-12 text-center">
+          <h1 className="font-display text-3xl tracking-tight">Finish setting up your business</h1>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            Add your location, services, and hours so customers can find and book you.
+          </p>
+          <div className="mt-7 flex justify-center">
+            <Link href={ROUTES.onboarding}>
+              <Button>Continue onboarding</Button>
+            </Link>
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
@@ -117,17 +135,31 @@ export function DashboardView() {
           </p>
           <div className="flex flex-wrap gap-3">
             {user.role === "CUSTOMER" ? (
-              <Link href={ROUTES.assistant}>
-                <Button>Ask AI</Button>
-              </Link>
-            ) : null}
+              <>
+                <Link href={ROUTES.explore}>
+                  <Button>Explore services</Button>
+                </Link>
+                <Link href={ROUTES.assistant}>
+                  <Button variant="secondary">Ask AI</Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href={ROUTES.catalog}>
+                  <Button>Manage offers</Button>
+                </Link>
+                <Link href={ROUTES.onboarding}>
+                  <Button variant="secondary">Update profile</Button>
+                </Link>
+              </>
+            )}
             <Link href={ROUTES.appointments}>
-              <Button variant={user.role === "CUSTOMER" ? "secondary" : "primary"}>
-                {user.role === "CUSTOMER" ? "Book appointment" : "View appointments"}
+              <Button variant="secondary">
+                {user.role === "CUSTOMER" ? "My bookings" : "View appointments"}
               </Button>
             </Link>
             <Link href={ROUTES.calendar}>
-              <Button variant="secondary">View calendar</Button>
+              <Button variant="ghost">View calendar</Button>
             </Link>
           </div>
         </section>

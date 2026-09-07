@@ -2,6 +2,8 @@ import { Router } from "express";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { validateRequest } from "../../middleware/validate.middleware.js";
 import { asyncHandler } from "../../utils/async-handler.js";
+import { reviewController } from "../reviews/review.controller.js";
+import { createReviewSchema } from "../reviews/review.schema.js";
 import { appointmentController } from "./appointment.controller.js";
 import {
   appointmentIdParamSchema,
@@ -35,4 +37,23 @@ appointmentRouter.patch(
   "/:id/cancel",
   validateRequest(appointmentIdParamSchema, "params"),
   asyncHandler((req, res) => appointmentController.cancel(req, res)),
+);
+
+appointmentRouter.patch(
+  "/:id/complete",
+  validateRequest(appointmentIdParamSchema, "params"),
+  asyncHandler((req, res) => appointmentController.complete(req, res)),
+);
+
+appointmentRouter.patch(
+  "/:id/request-review",
+  validateRequest(appointmentIdParamSchema, "params"),
+  asyncHandler((req, res) => appointmentController.requestReview(req, res)),
+);
+
+appointmentRouter.post(
+  "/:id/reviews",
+  validateRequest(appointmentIdParamSchema, "params"),
+  validateRequest(createReviewSchema, "body"),
+  asyncHandler((req, res) => reviewController.createForAppointment(req, res)),
 );

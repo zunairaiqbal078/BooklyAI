@@ -2,18 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMemo } from "react";
 import { ROUTES } from "@/constants";
+import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
-
-const links = [
-  { href: ROUTES.dashboard, label: "Home" },
-  { href: ROUTES.assistant, label: "AI" },
-  { href: ROUTES.appointments, label: "Bookings" },
-  { href: ROUTES.calendar, label: "Calendar" },
-];
 
 export function MobileAppNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  const links = useMemo(() => {
+    if (!user) return [];
+    if (user.role === "CUSTOMER") {
+      return [
+        { href: ROUTES.explore, label: "Explore" },
+        { href: ROUTES.dashboard, label: "Home" },
+        { href: ROUTES.assistant, label: "AI" },
+        { href: ROUTES.appointments, label: "Bookings" },
+      ];
+    }
+    return [
+      { href: ROUTES.dashboard, label: "Home" },
+      { href: ROUTES.catalog, label: "Catalog" },
+      { href: ROUTES.appointments, label: "Bookings" },
+      { href: ROUTES.calendar, label: "Calendar" },
+    ];
+  }, [user]);
+
+  if (!user || links.length === 0) return null;
 
   return (
     <nav

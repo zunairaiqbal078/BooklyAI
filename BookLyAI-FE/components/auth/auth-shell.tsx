@@ -21,7 +21,7 @@ export function AuthShell({ title, subtitle, children, panelTitle, panelBody }: 
           <p className="font-display text-4xl leading-tight tracking-tight">{panelTitle}</p>
           <p className="mt-5 text-base leading-7 text-white/75">{panelBody}</p>
         </div>
-        <p className="text-sm text-white/55">Secure sessions via HttpOnly cookies.</p>
+
       </aside>
 
       <div className="flex flex-col bg-background">

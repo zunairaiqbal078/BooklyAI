@@ -1,18 +1,17 @@
-import { SUGGESTED_PROMPTS } from "@/constants";
-
 interface SuggestedPromptsProps {
   onSelect: (prompt: string) => void;
   disabled?: boolean;
+  prompts: readonly string[];
 }
 
-export function SuggestedPrompts({ onSelect, disabled }: SuggestedPromptsProps) {
+export function SuggestedPrompts({ onSelect, disabled, prompts }: SuggestedPromptsProps) {
   return (
     <div className="space-y-3">
       <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted">
         Suggested prompts
       </p>
       <div className="flex flex-wrap gap-2">
-        {SUGGESTED_PROMPTS.map((prompt) => (
+        {prompts.map((prompt) => (
           <button
             key={prompt}
             type="button"

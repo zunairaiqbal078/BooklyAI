@@ -12,6 +12,8 @@ export interface AuthUser {
   name: string;
   role: UserRole;
   businessId: string | null;
+  /** Null for customers; false until business finishes marketplace onboarding. */
+  onboardingComplete: boolean | null;
 }
 
 export interface ApiSuccess<T> {
@@ -36,6 +38,10 @@ export interface AiStructuredIntent {
     | "list_appointments"
     | "cancel_appointment"
     | "check_availability"
+    | "confirm_booking"
+    | "business_summary"
+    | "account_info"
+    | "out_of_context"
     | "small_talk"
     | "unknown";
   service: string | null;

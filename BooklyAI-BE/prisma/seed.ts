@@ -1,6 +1,12 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
-import { PrismaClient, AppointmentStatus, ChatRole, UserRole } from "@prisma/client";
+import {
+  PrismaClient,
+  AppointmentStatus,
+  BusinessCategory,
+  ChatRole,
+  UserRole,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -11,10 +17,26 @@ const IDS = {
   business: "33333333-3333-4333-8333-333333333333",
   serviceConsultation: "44444444-4444-4444-8444-444444444441",
   serviceFollowUp: "44444444-4444-4444-8444-444444444442",
+  salonOwner: "22222222-2222-4222-8222-222222222223",
+  salonBusiness: "33333333-3333-4333-8333-333333333334",
+  serviceHaircut: "44444444-4444-4444-8444-444444444443",
+  serviceColor: "44444444-4444-4444-8444-444444444444",
   aptUpcoming: "55555555-5555-4555-8555-555555555551",
   aptToday: "55555555-5555-4555-8555-555555555552",
   aptCompleted: "55555555-5555-4555-8555-555555555553",
   aptCancelled: "55555555-5555-4555-8555-555555555554",
+  aptSalonCompleted1: "55555555-5555-4555-8555-555555555555",
+  aptSalonCompleted2: "55555555-5555-4555-8555-555555555556",
+  aptWellnessCompleted2: "55555555-5555-4555-8555-555555555557",
+  customer2: "11111111-1111-4111-8111-111111111112",
+  offerWellness1: "99999999-9999-4999-8999-999999999991",
+  offerWellness2: "99999999-9999-4999-8999-999999999992",
+  offerSalon1: "99999999-9999-4999-8999-999999999993",
+  offerSalon2: "99999999-9999-4999-8999-999999999994",
+  review1: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+  review2: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+  review3: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  review4: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4",
   chatSession: "66666666-6666-4666-8666-666666666666",
   msg1: "77777777-7777-4777-8777-777777777771",
   msg2: "77777777-7777-4777-8777-777777777772",
@@ -38,7 +60,9 @@ async function seed(): Promise<void> {
   await prisma.aiInteraction.deleteMany();
   await prisma.chatMessage.deleteMany();
   await prisma.chatSession.deleteMany();
+  await prisma.review.deleteMany();
   await prisma.appointment.deleteMany();
+  await prisma.offer.deleteMany();
   await prisma.availabilityRule.deleteMany();
   await prisma.service.deleteMany();
   await prisma.business.deleteMany();
@@ -74,7 +98,16 @@ async function seed(): Promise<void> {
       name: "Northside Wellness",
       slug: "northside-wellness",
       description: "Consultations and follow-ups with a calm, unhurried pace.",
+      category: BusinessCategory.WELLNESS,
+      city: "Austin",
+      address: "1200 North Lamar Blvd",
+      coverImageUrl:
+        "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1200&q=80",
       timezone: "UTC",
+      isPublished: true,
+      onboardingComplete: true,
+      ratingAvg: 0,
+      reviewCount: 0,
     },
   });
 
@@ -85,6 +118,9 @@ async function seed(): Promise<void> {
       name: "General consultation",
       description: "45-minute first visit or general check-in.",
       durationMin: 45,
+      priceCents: 9000,
+      imageUrl:
+        "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80",
       isActive: true,
     },
   });
@@ -96,6 +132,9 @@ async function seed(): Promise<void> {
       name: "Follow-up",
       description: "30-minute return visit.",
       durationMin: 30,
+      priceCents: 6000,
+      imageUrl:
+        "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=800&q=80",
       isActive: true,
     },
   });
@@ -111,9 +150,137 @@ async function seed(): Promise<void> {
     })),
   });
 
+  const salonOwner = await prisma.user.create({
+    data: {
+      id: IDS.salonOwner,
+      email: "salon@booklyai.dev",
+      name: "Maya Ortiz",
+      role: UserRole.BUSINESS,
+      passwordHash,
+    },
+  });
+
+  const salon = await prisma.business.create({
+    data: {
+      id: IDS.salonBusiness,
+      ownerId: salonOwner.id,
+      name: "Lumen Hair Studio",
+      slug: "lumen-hair-studio",
+      description: "Modern cuts, color, and blowouts in South Austin.",
+      category: BusinessCategory.SALON,
+      city: "Austin",
+      address: "4800 South Congress Ave",
+      coverImageUrl:
+        "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1200&q=80",
+      timezone: "UTC",
+      isPublished: true,
+      onboardingComplete: true,
+      ratingAvg: 0,
+      reviewCount: 0,
+    },
+  });
+
+  await prisma.service.createMany({
+    data: [
+      {
+        id: IDS.serviceHaircut,
+        businessId: salon.id,
+        name: "Signature haircut",
+        description: "Cut, wash, and style.",
+        durationMin: 45,
+        priceCents: 5500,
+        imageUrl:
+          "https://images.unsplash.com/photo-1562322140-8baeececf3df?auto=format&fit=crop&w=800&q=80",
+        isActive: true,
+      },
+      {
+        id: IDS.serviceColor,
+        businessId: salon.id,
+        name: "Color refresh",
+        description: "Single-process color with gloss.",
+        durationMin: 90,
+        priceCents: 12000,
+        imageUrl:
+          "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
+        isActive: true,
+      },
+    ],
+  });
+
+  await prisma.offer.createMany({
+    data: [
+      {
+        id: IDS.offerWellness1,
+        businessId: business.id,
+        serviceId: consultation.id,
+        title: "New client calm start",
+        description: "First consultation with guided intake and pacing tips.",
+        priceCents: 7900,
+        imageUrl:
+          "https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80",
+        isActive: true,
+      },
+      {
+        id: IDS.offerWellness2,
+        businessId: business.id,
+        serviceId: followUp.id,
+        title: "2-visit follow-up pack",
+        description: "Bundle of two follow-ups at a soft discount.",
+        priceCents: 11000,
+        imageUrl:
+          "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=800&q=80",
+        isActive: true,
+      },
+      {
+        id: IDS.offerSalon1,
+        businessId: salon.id,
+        serviceId: IDS.serviceHaircut,
+        title: "Friday cut special",
+        description: "Signature cut with complimentary styling spray.",
+        priceCents: 4900,
+        imageUrl:
+          "https://images.unsplash.com/photo-1599351431202-1e0f11030869?auto=format&fit=crop&w=800&q=80",
+        isActive: true,
+      },
+      {
+        id: IDS.offerSalon2,
+        businessId: salon.id,
+        serviceId: IDS.serviceColor,
+        title: "Gloss & glow",
+        description: "Color refresh with shine treatment.",
+        priceCents: 10900,
+        imageUrl:
+          "https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&w=800&q=80",
+        isActive: true,
+      },
+    ],
+  });
+
+  await prisma.availabilityRule.createMany({
+    data: [2, 3, 4, 5, 6].map((dayOfWeek) => ({
+      businessId: salon.id,
+      dayOfWeek,
+      startTime: "10:00",
+      endTime: "18:00",
+      slotMin: 30,
+    })),
+  });
+
+  const customer2 = await prisma.user.create({
+    data: {
+      id: IDS.customer2,
+      email: "customer2@booklyai.dev",
+      name: "Sam Rivera",
+      role: UserRole.CUSTOMER,
+      passwordHash,
+    },
+  });
+
   const tomorrowAfternoon = atLocalDay(now, 1, 15, 30);
   const todayMorning = atLocalDay(now, 0, 10, 0);
   const lastWeek = atLocalDay(now, -7, 14, 0);
+  const twoWeeksAgo = atLocalDay(now, -14, 11, 0);
+  const tenDaysAgo = atLocalDay(now, -10, 15, 0);
   const cancelledSlot = atLocalDay(now, 2, 11, 0);
 
   await prisma.appointment.createMany({
@@ -146,6 +313,17 @@ async function seed(): Promise<void> {
         startTime: lastWeek,
         endTime: new Date(lastWeek.getTime() + 45 * 60_000),
         status: AppointmentStatus.COMPLETED,
+        reviewRequested: true,
+      },
+      {
+        id: IDS.aptWellnessCompleted2,
+        businessId: business.id,
+        customerId: customer2.id,
+        serviceId: followUp.id,
+        startTime: twoWeeksAgo,
+        endTime: new Date(twoWeeksAgo.getTime() + 30 * 60_000),
+        status: AppointmentStatus.COMPLETED,
+        reviewRequested: true,
       },
       {
         id: IDS.aptCancelled,
@@ -157,8 +335,84 @@ async function seed(): Promise<void> {
         status: AppointmentStatus.CANCELLED,
         notes: "Customer cancelled",
       },
+      {
+        id: IDS.aptSalonCompleted1,
+        businessId: salon.id,
+        customerId: customer.id,
+        serviceId: IDS.serviceHaircut,
+        startTime: tenDaysAgo,
+        endTime: new Date(tenDaysAgo.getTime() + 45 * 60_000),
+        status: AppointmentStatus.COMPLETED,
+        reviewRequested: true,
+      },
+      {
+        id: IDS.aptSalonCompleted2,
+        businessId: salon.id,
+        customerId: customer2.id,
+        serviceId: IDS.serviceColor,
+        startTime: twoWeeksAgo,
+        endTime: new Date(twoWeeksAgo.getTime() + 90 * 60_000),
+        status: AppointmentStatus.COMPLETED,
+        reviewRequested: true,
+      },
     ],
   });
+
+  await prisma.review.createMany({
+    data: [
+      {
+        id: IDS.review1,
+        businessId: business.id,
+        serviceId: consultation.id,
+        customerId: customer.id,
+        appointmentId: IDS.aptCompleted,
+        rating: 5,
+        comment: "Calm pace and clear next steps. Highly recommend.",
+      },
+      {
+        id: IDS.review2,
+        businessId: business.id,
+        serviceId: followUp.id,
+        customerId: customer2.id,
+        appointmentId: IDS.aptWellnessCompleted2,
+        rating: 4,
+        comment: "Helpful follow-up — easy to book again.",
+      },
+      {
+        id: IDS.review3,
+        businessId: salon.id,
+        serviceId: IDS.serviceHaircut,
+        customerId: customer.id,
+        appointmentId: IDS.aptSalonCompleted1,
+        rating: 5,
+        comment: "Great cut and friendly stylists.",
+      },
+      {
+        id: IDS.review4,
+        businessId: salon.id,
+        serviceId: IDS.serviceColor,
+        customerId: customer2.id,
+        appointmentId: IDS.aptSalonCompleted2,
+        rating: 4,
+        comment: "Color looks natural. Loved the gloss offer.",
+      },
+    ],
+  });
+
+  for (const businessId of [business.id, salon.id]) {
+    const agg = await prisma.review.aggregate({
+      where: { businessId },
+      _avg: { rating: true },
+      _count: { _all: true },
+    });
+    await prisma.business.update({
+      where: { id: businessId },
+      data: {
+        ratingAvg: agg._avg.rating ?? 0,
+        reviewCount: agg._count._all,
+      },
+    });
+  }
 
   const session = await prisma.chatSession.create({
     data: {
@@ -210,7 +464,7 @@ async function seed(): Promise<void> {
       id: IDS.aiInteraction,
       userId: customer.id,
       sessionId: session.id,
-      model: "mistral-small-latest",
+      model: "openai/gpt-oss-20b",
       intent: "book_appointment",
       success: true,
       latencyMs: 412,
@@ -221,7 +475,8 @@ async function seed(): Promise<void> {
   console.info("Seed complete.");
   console.info("Demo customer: customer@booklyai.dev / Demo1234!");
   console.info("Demo business: business@booklyai.dev / Demo1234!");
-  console.info(`Business: ${business.name} (${business.slug})`);
+  console.info("Demo salon: salon@booklyai.dev / Demo1234!");
+  console.info(`Business: ${business.name} (${business.slug}) · ${salon.name} (${salon.slug})`);
 }
 
 seed()

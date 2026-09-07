@@ -7,6 +7,9 @@ export const aiIntentSchema = z.object({
     "cancel_appointment",
     "check_availability",
     "confirm_booking",
+    "business_summary",
+    "account_info",
+    "out_of_context",
     "small_talk",
     "unknown",
   ]),
@@ -30,14 +33,52 @@ export interface ConversationTurn {
 
 export interface AiCatalogContext {
   today: string;
-  businesses: Array<{ id: string; name: string; slug: string }>;
+  role: "CUSTOMER" | "BUSINESS";
+  /** Signed-in user profile — always present during chat. */
+  account: {
+    userId: string;
+    name: string;
+    email: string;
+    role: "CUSTOMER" | "BUSINESS";
+    businessId: string | null;
+    onboardingComplete: boolean | null;
+    ownedBusiness: {
+      id: string;
+      name: string;
+      slug: string;
+      category: string;
+      city: string | null;
+      address: string | null;
+      isPublished: boolean;
+      onboardingComplete: boolean;
+    } | null;
+  };
+  businesses: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    category: string;
+    city: string | null;
+    description: string | null;
+  }>;
   services: Array<{
     id: string;
     businessId: string;
     name: string;
     durationMin: number;
+    priceCents: number | null;
   }>;
   draft: BookingDraft | null;
+  /** Precomputed account stats for BUSINESS role (optional). */
+  businessStats?: {
+    total: number;
+    upcoming: number;
+    today: number;
+    completed: number;
+    cancelled: number;
+    paidCount: number;
+    paidRevenueCents: number;
+  } | null;
 }
 
 export interface BookingDraft {
