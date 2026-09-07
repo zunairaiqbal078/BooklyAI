@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  BUSINESS
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+/// Authenticated account. BUSINESS users own exactly one Business via Business.ownerId.
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         UserRole
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  ownedBusiness Business?      @relation("BusinessOwner")
+  appointments  Appointment[]  @relation("CustomerAppointments")
+  chatSessions  ChatSession[]
+  aiInteractions AiInteraction[]
+
+  @@index([role])
+  @@map("users")
+}
+
+/// Bookable tenant. One owner per business for this prototype.
+model Business {
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @unique @map("owner_id") @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  timezone    String   @default("UTC")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  owner             User               @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  services          Service[]
+  availabilityRules AvailabilityRule[]
+  appointments      Appointment[]
+
+  @@map("businesses")
+}
+
+/// Catalog item a customer can book at a business.
+model Service {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  name        String
+  description String?
+  durationMin Int      @map("duration_min")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([businessId])
+  @@index([businessId, isActive])
+  @@map("services")
+}
+
+/// Weekly opening hours. dayOfWeek: 0 = Sunday … 6 = Saturday (JS Date convention).
+model AvailabilityRule {
+  id         String @id @default(uuid()) @db.Uuid
+  businessId String @map("business_id") @db.Uuid
+  dayOfWeek  Int    @map("day_of_week")
+  startTime  String @map("start_time") // HH:mm in business timezone
+  endTime    String @map("end_time") // HH:mm in business timezone
+  slotMin    Int    @default(30) @map("slot_min")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, dayOfWeek])
+  @@map("availability_rules")
+}
+
+/// Booked time range. Overlap prevention is enforced in AppointmentService (Phase 4).
+model Appointment {
+  id         String            @id @default(uuid()) @db.Uuid
+  businessId String            @map("business_id") @db.Uuid
+  customerId String            @map("customer_id") @db.Uuid
+  serviceId  String            @map("service_id") @db.Uuid
+  startTime  DateTime          @map("start_time")
+  endTime    DateTime          @map("end_time")
+  status     AppointmentStatus @default(PENDING)
+  notes      String?
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer User     @relation("CustomerAppointments", fields: [customerId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([businessId])
+  @@index([status])
+  @@index([startTime])
+  @@index([businessId, startTime])
+  @@index([businessId, status, startTime])
+  @@index([customerId, status, startTime])
+  @@map("appointments")
+}
+
+model ChatSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  title     String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages       ChatMessage[]
+  aiInteractions AiInteraction[]
+
+  @@index([userId])
+  @@index([userId, updatedAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @map("session_id") @db.Uuid
+  role      ChatRole
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([sessionId, createdAt])
+  @@map("chat_messages")
+}
+
+/// Analytics / debugging for AI calls. No passwords or JWTs stored.
+model AiInteraction {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  sessionId  String?  @map("session_id") @db.Uuid
+  model      String
+  intent     String?
+  success    Boolean
+  latencyMs  Int      @map("latency_ms")
+  errorCode  String?  @map("error_code")
+  requestAt  DateTime @default(now()) @map("request_at")
+  metadata   Json?
+
+  user    User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  session ChatSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([requestAt])
+  @@index([intent])
+  @@map("ai_interactions")
+}
