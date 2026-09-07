@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { type FormEvent, useMemo, useState } from "react";
+import { ImageField } from "@/components/catalog/image-field";
 import { AppShell } from "@/components/layout/app-shell";
+import { PlacesLocationField } from "@/components/maps/places-location-field";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
@@ -22,33 +24,24 @@ const DAY_OPTIONS = [
   { value: 0, label: "Sun" },
 ] as const;
 
-interface ServiceDraft {
-  name: string;
-  description: string;
-  durationMin: number;
-  price: string;
-}
-
 export function BusinessOnboardingView() {
   const router = useRouter();
   const { user, refresh } = useAuth();
   const [step, setStep] = useState(1);
-  const [name, setName] = useState(user?.role === "BUSINESS" ? "" : "");
+  const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<BusinessCategory>("SALON");
+  const [coverImageUrl, setCoverImageUrl] = useState("");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [services, setServices] = useState<ServiceDraft[]>([
-    { name: "", description: "", durationMin: 45, price: "" },
-  ]);
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const canStep1 = name.trim().length >= 2 && city.trim().length >= 2;
-  const canStep2 = services.every((s) => s.name.trim().length >= 2 && s.durationMin >= 5);
+  const canStep1 = name.trim().length >= 2 && description.trim().length >= 10;
+  const canStep2 = city.trim().length >= 2;
   const canStep3 = selectedDays.length > 0 && startTime < endTime;
 
   const previewHours = useMemo(
@@ -70,17 +63,13 @@ export function BusinessOnboardingView() {
     try {
       await completeOnboarding({
         name: name.trim(),
-        description: description.trim() || undefined,
+        description: description.trim(),
         category,
         city: city.trim(),
         address: address.trim() || undefined,
         timezone: "UTC",
-        services: services.map((service) => ({
-          name: service.name.trim(),
-          description: service.description.trim() || undefined,
-          durationMin: service.durationMin,
-          priceCents: service.price ? Math.round(Number(service.price) * 100) : null,
-        })),
+        coverImageUrl: coverImageUrl.trim() || undefined,
+        services: [],
         hours: previewHours,
         publish: true,
       });
@@ -108,9 +97,11 @@ export function BusinessOnboardingView() {
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">
             Business setup
           </p>
-          <h1 className="mt-2 font-display text-4xl tracking-tight">Tell customers what you offer</h1>
+          <h1 className="mt-2 font-display text-4xl tracking-tight">
+            Set up your business profile
+          </h1>
           <p className="mt-2 text-sm text-muted">
-            Add your location and services so customers can discover and book you.
+            Add details, location, and hours. Services and offers are managed later in Catalog.
           </p>
           <p className="mt-4 text-xs text-muted">Step {step} of 3</p>
         </header>
@@ -143,122 +134,42 @@ export function BusinessOnboardingView() {
               </select>
             </div>
             <div>
-              <Label htmlFor="city">City / location</Label>
-              <Input
-                id="city"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Austin"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="address">Street address (optional)</Label>
-              <Input
-                id="address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="4800 South Congress Ave"
-              />
-            </div>
-            <div>
-              <Label htmlFor="description">About</Label>
+              <Label htmlFor="description">About / description</Label>
               <textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                rows={4}
+                rows={5}
+                required
                 className="w-full rounded-xl border border-line bg-background px-4 py-3 text-sm outline-none focus:border-accent"
-                placeholder="What should customers know?"
+                placeholder="Tell customers what you offer, your style, and who you serve."
               />
+              <p className="mt-1.5 text-xs text-muted">At least 10 characters.</p>
+            </div>
+            <div>
+              <Label>Profile photo (optional)</Label>
+              <p className="mb-2 text-xs text-muted">
+                Shown in your header and on your public business page.
+              </p>
+              <ImageField value={coverImageUrl} onChange={setCoverImageUrl} disabled={submitting} />
             </div>
             <Button type="button" disabled={!canStep1} onClick={() => setStep(2)}>
-              Continue to services
+              Continue to location
             </Button>
           </section>
         ) : null}
 
         {step === 2 ? (
           <section className="space-y-4 rounded-2xl border border-line bg-surface p-6">
-            <p className="text-sm text-muted">Add at least one bookable service.</p>
-            {services.map((service, index) => (
-              <div key={index} className="space-y-3 rounded-xl border border-line/80 p-4">
-                <div>
-                  <Label htmlFor={`svc-name-${index}`}>Service name</Label>
-                  <Input
-                    id={`svc-name-${index}`}
-                    value={service.name}
-                    onChange={(e) => {
-                      const next = [...services];
-                      next[index] = { ...service, name: e.target.value };
-                      setServices(next);
-                    }}
-                    placeholder="Signature haircut"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor={`svc-duration-${index}`}>Duration (min)</Label>
-                    <Input
-                      id={`svc-duration-${index}`}
-                      type="number"
-                      min={5}
-                      value={service.durationMin}
-                      onChange={(e) => {
-                        const next = [...services];
-                        next[index] = {
-                          ...service,
-                          durationMin: Number(e.target.value) || 30,
-                        };
-                        setServices(next);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`svc-price-${index}`}>Price (optional)</Label>
-                    <Input
-                      id={`svc-price-${index}`}
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={service.price}
-                      onChange={(e) => {
-                        const next = [...services];
-                        next[index] = { ...service, price: e.target.value };
-                        setServices(next);
-                      }}
-                      placeholder="55"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor={`svc-desc-${index}`}>Description</Label>
-                  <Input
-                    id={`svc-desc-${index}`}
-                    value={service.description}
-                    onChange={(e) => {
-                      const next = [...services];
-                      next[index] = { ...service, description: e.target.value };
-                      setServices(next);
-                    }}
-                    placeholder="Cut, wash, and style"
-                  />
-                </div>
-              </div>
-            ))}
+            <PlacesLocationField
+              city={city}
+              address={address}
+              onChange={({ city: nextCity, address: nextAddress }) => {
+                setCity(nextCity);
+                setAddress(nextAddress);
+              }}
+            />
             <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() =>
-                  setServices((rows) => [
-                    ...rows,
-                    { name: "", description: "", durationMin: 30, price: "" },
-                  ])
-                }
-              >
-                Add another service
-              </Button>
               <Button type="button" variant="ghost" onClick={() => setStep(1)}>
                 Back
               </Button>

@@ -13,6 +13,7 @@ export interface User {
   role: UserRole;
   businessId: string | null;
   onboardingComplete: boolean | null;
+  avatarUrl: string | null;
 }
 
 export type BusinessCategory =

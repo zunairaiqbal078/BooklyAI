@@ -37,6 +37,17 @@ export function AssistantView() {
 
   const isBusiness = user?.role === "BUSINESS";
 
+  // Clear chat when switching accounts so business/customer history never overlaps.
+  useEffect(() => {
+    if (!user) return;
+    const ownerKey = `${user.id}:${user.role}`;
+    const previous = sessionStorage.getItem("bookly-chat-owner");
+    if (previous && previous !== ownerKey) {
+      reset();
+    }
+    sessionStorage.setItem("bookly-chat-owner", ownerKey);
+  }, [user, reset]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isThinking]);
@@ -56,11 +67,31 @@ export function AssistantView() {
       };
       appendMessages([optimisticUser]);
 
-      try {
-        const result = await sendChatMessage({
-          sessionId: sessionId ?? undefined,
+      async function request(session?: string) {
+        return sendChatMessage({
+          sessionId: session,
           message: text,
         });
+      }
+
+      try {
+        let result;
+        try {
+          result = await request(sessionId ?? undefined);
+        } catch (err) {
+          // Stale session from another login — start a fresh owned conversation.
+          if (
+            err instanceof ApiError &&
+            (err.status === 403 || err.status === 404) &&
+            sessionId
+          ) {
+            reset();
+            result = await request(undefined);
+          } else {
+            throw err;
+          }
+        }
+
         setSessionId(result.sessionId);
         useChatStore.setState((state) => ({
           messages: [
@@ -81,6 +112,7 @@ export function AssistantView() {
     },
     [
       appendMessages,
+      reset,
       sessionId,
       setError,
       setLastFailedMessage,

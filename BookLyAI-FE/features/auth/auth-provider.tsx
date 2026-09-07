@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ROUTES } from "@/constants";
 import { getMe, logout as logoutRequest } from "@/features/auth/api";
 import { useAuthStore } from "@/stores/auth.store";
+import { useChatStore } from "@/stores/chat.store";
 import type { User } from "@/types";
 
 interface AuthContextValue {
@@ -46,6 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await logoutRequest();
     } finally {
       setUser(null);
+      useChatStore.getState().reset();
+      sessionStorage.removeItem("bookly-chat-owner");
       router.replace(ROUTES.home);
     }
   }, [router, setUser]);

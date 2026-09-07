@@ -15,6 +15,19 @@ export function minutesToHm(total: number): string {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
+/** Display wall-clock HH:mm as 12-hour (e.g. "09:30" → "9:30 AM"). */
+export function formatClock12(hm: string): string {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(hm.trim());
+  if (!match) return hm;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return hm;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
 /** Build a UTC Date from YYYY-MM-DD + HH:mm (prototype uses UTC business timezone). */
 export function combineDateAndTimeUtc(date: string, hm: string): Date {
   const [year, month, day] = date.split("-").map(Number);

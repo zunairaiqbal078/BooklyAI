@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { formatClockTime } from "@/lib/datetime";
 
 interface SlotPickerCardProps {
   date: string;
@@ -26,7 +27,7 @@ export function SlotPickerCard({ date, slots, onSelect, disabled }: SlotPickerCa
               className="h-9 px-3 text-xs"
               onClick={() => onSelect(slot)}
             >
-              {slot}
+              {formatClockTime(slot)}
             </Button>
           ))}
         </div>

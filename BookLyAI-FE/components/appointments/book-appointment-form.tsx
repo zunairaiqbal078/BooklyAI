@@ -15,6 +15,7 @@ import {
   type ServiceSummary,
 } from "@/features/appointments/api";
 import { useLoadWhen } from "@/hooks/use-load-when";
+import { formatClockTime } from "@/lib/datetime";
 import { ApiError } from "@/types";
 
 interface BookAppointmentFormProps {
@@ -228,7 +229,7 @@ export function BookAppointmentForm({
             ) : (
               visibleSlots.map((slot) => (
                 <option key={slot} value={slot}>
-                  {slot}
+                  {formatClockTime(slot)}
                 </option>
               ))
             )}

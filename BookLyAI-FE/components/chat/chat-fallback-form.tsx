@@ -10,6 +10,7 @@ import {
   type ServiceSummary,
 } from "@/features/appointments/api";
 import type { ChatMessageMeta } from "@/features/chat/api";
+import { formatClockTime } from "@/lib/datetime";
 import { ApiError } from "@/types";
 
 type FallbackFormMeta = Extract<ChatMessageMeta, { type: "fallback_form" }>["form"];
@@ -163,7 +164,7 @@ export function ChatFallbackForm({
             ) : (
               slots.map((slot) => (
                 <option key={slot} value={slot}>
-                  {slot}
+                  {formatClockTime(slot)}
                 </option>
               ))
             )}

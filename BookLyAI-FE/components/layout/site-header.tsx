@@ -62,9 +62,21 @@ export function SiteHeader() {
             <span className="text-xs text-muted">…</span>
           ) : user ? (
             <>
-              <span className="hidden max-w-[10rem] truncate text-sm text-muted sm:inline">
-                {user.name}
-              </span>
+              <div className="hidden items-center gap-2 sm:flex">
+                {user.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.avatarUrl}
+                    alt=""
+                    className="h-8 w-8 rounded-full object-cover ring-1 ring-line"
+                  />
+                ) : (
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-soft text-xs font-medium text-accent">
+                    {user.name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+                <span className="max-w-[10rem] truncate text-sm text-muted">{user.name}</span>
+              </div>
               <Button variant="secondary" className="h-9 px-3 text-xs" onClick={() => void logout()}>
                 Sign out
               </Button>

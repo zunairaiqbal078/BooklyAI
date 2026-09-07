@@ -12,11 +12,11 @@ import { ROUTES } from "@/constants";
 import { cancelAppointment, listAppointments, type AppointmentDetail } from "@/features/appointments/api";
 import { useAuth } from "@/features/auth/auth-provider";
 import { useLoadWhen } from "@/hooks/use-load-when";
-import { greetingForNow, toDateKey } from "@/lib/datetime";
+import { greetingForNow, localDateKey, toDateKey } from "@/lib/datetime";
 import { ApiError } from "@/types";
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateKey();
 }
 
 export function DashboardView() {

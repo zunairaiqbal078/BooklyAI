@@ -14,6 +14,8 @@ export interface AuthUser {
   businessId: string | null;
   /** Null for customers; false until business finishes marketplace onboarding. */
   onboardingComplete: boolean | null;
+  /** Business cover/profile photo when role is BUSINESS. */
+  avatarUrl: string | null;
 }
 
 export interface ApiSuccess<T> {

@@ -104,6 +104,82 @@ describe("Appointments & availability", () => {
     expect(conflict.body.error.code).toBe("APPOINTMENT_CONFLICT");
   });
 
+  it("rejects a later slot that overlaps an existing booking duration", async () => {
+    const agent = await loginAsCustomer();
+    // Use a date far enough out to avoid colliding with other tests in this file.
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 9);
+    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    const date = d.toISOString().slice(0, 10);
+
+    const availability = await agent.get("/api/availability").query({
+      businessId: BUSINESS_ID,
+      date,
+      serviceId: SERVICE_ID,
+    });
+    const slots = availability.body.data.slots as string[];
+    expect(slots.length).toBeGreaterThan(1);
+
+    const first = slots[0]!;
+    const created = await agent.post("/api/appointments").send({
+      businessId: BUSINESS_ID,
+      serviceId: SERVICE_ID,
+      startTime: combineDateAndTimeUtc(date, first).toISOString(),
+    });
+    expect(created.status).toBe(201);
+    createdAppointmentIds.push(created.body.data.appointment.id);
+
+    // Consultation is 45 min with 30-min steps → next grid slot overlaps the first booking.
+    const overlapping = slots[1]!;
+    const conflict = await agent.post("/api/appointments").send({
+      businessId: BUSINESS_ID,
+      serviceId: SERVICE_ID,
+      startTime: combineDateAndTimeUtc(date, overlapping).toISOString(),
+    });
+    expect(conflict.status).toBe(409);
+    expect(conflict.body.error.code).toBe("APPOINTMENT_CONFLICT");
+  });
+
+  it("allows only one of two concurrent bookings for the same slot", async () => {
+    const customerA = await loginAsCustomer();
+    const customerB = request.agent(app);
+    const loginB = await customerB.post("/api/auth/login").send({
+      email: "customer2@booklyai.dev",
+      password: "Demo1234!",
+    });
+    expect(loginB.status).toBe(200);
+
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 12);
+    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    const date = d.toISOString().slice(0, 10);
+
+    const availability = await customerA.get("/api/availability").query({
+      businessId: BUSINESS_ID,
+      date,
+      serviceId: SERVICE_ID,
+    });
+    const slot = availability.body.data.slots[0] as string;
+    expect(slot).toBeTruthy();
+    const startTime = combineDateAndTimeUtc(date, slot).toISOString();
+    const payload = { businessId: BUSINESS_ID, serviceId: SERVICE_ID, startTime };
+
+    const [a, b] = await Promise.all([
+      customerA.post("/api/appointments").send(payload),
+      customerB.post("/api/appointments").send(payload),
+    ]);
+
+    const statuses = [a.status, b.status].sort((x, y) => x - y);
+    expect(statuses).toEqual([201, 409]);
+
+    const winner = a.status === 201 ? a : b;
+    createdAppointmentIds.push(winner.body.data.appointment.id);
+  });
+
   it("lists appointments for the customer and forbids business-owner booking", async () => {
     const customer = await loginAsCustomer();
     const list = await customer.get("/api/appointments");

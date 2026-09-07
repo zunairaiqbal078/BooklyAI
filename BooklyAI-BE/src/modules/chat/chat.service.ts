@@ -5,7 +5,7 @@ import { prisma } from "../../config/database.js";
 import { logger } from "../../config/logger.js";
 import type { AuthUser } from "../../types/index.js";
 import { ForbiddenError, NotFoundError } from "../../utils/app-error.js";
-import { combineDateAndTimeUtc } from "../../utils/time.js";
+import { combineDateAndTimeUtc, formatClock12 } from "../../utils/time.js";
 import {
   appointmentService,
   type AppointmentDto,
@@ -127,6 +127,21 @@ function emptyDraft(): BookingDraft {
   };
 }
 
+function sessionOwnerMeta(user: AuthUser) {
+  return {
+    ownerUserId: user.id,
+    ownerRole: user.role,
+  };
+}
+
+function readSessionOwnerRole(metadata: JsonValue | null): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+  const role = (metadata as { ownerRole?: unknown }).ownerRole;
+  return typeof role === "string" ? role : null;
+}
+
 function readDraft(metadata: JsonValue | null): BookingDraft {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
     return emptyDraft();
@@ -145,7 +160,10 @@ export class ChatService {
       data: {
         userId: user.id,
         title: title ?? "New conversation",
-        metadata: asJson({ draft: emptyDraft() }),
+        metadata: asJson({
+          draft: emptyDraft(),
+          ...sessionOwnerMeta(user),
+        }),
       },
     });
     return {
@@ -175,7 +193,10 @@ export class ChatService {
           data: {
             userId: user.id,
             title: input.message.slice(0, 60),
-            metadata: asJson({ draft: emptyDraft() }),
+            metadata: asJson({
+              draft: emptyDraft(),
+              ...sessionOwnerMeta(user),
+            }),
           },
         });
 
@@ -417,7 +438,7 @@ export class ChatService {
     await prisma.chatSession.update({
       where: { id: session.id },
       data: {
-        metadata: asJson({ draft }),
+        metadata: asJson({ draft, ...sessionOwnerMeta(user) }),
         title: session.title ?? input.message.slice(0, 60),
       },
     });
@@ -449,7 +470,10 @@ export class ChatService {
           data: {
             userId: user.id,
             title: "Booked via form",
-            metadata: asJson({ draft: emptyDraft() }),
+            metadata: asJson({
+              draft: emptyDraft(),
+              ...sessionOwnerMeta(user),
+            }),
           },
         });
 
@@ -457,12 +481,12 @@ export class ChatService {
       data: {
         sessionId: session.id,
         role: "USER",
-        content: `Book ${appointment.service} on ${input.date} at ${input.time}`,
+        content: `Book ${appointment.service} on ${input.date} at ${formatClock12(input.time)}`,
         metadata: asJson({ type: "fallback_form" }),
       },
     });
 
-    const reply = `Your appointment is confirmed for ${appointment.service} on ${input.date} at ${input.time}.`;
+    const reply = `Your appointment is confirmed for ${appointment.service} on ${input.date} at ${formatClock12(input.time)}.`;
     const assistantMessage = await prisma.chatMessage.create({
       data: {
         sessionId: session.id,
@@ -474,7 +498,12 @@ export class ChatService {
 
     await prisma.chatSession.update({
       where: { id: session.id },
-      data: { metadata: asJson({ draft: emptyDraft() }) },
+      data: {
+        metadata: asJson({
+          draft: emptyDraft(),
+          ...sessionOwnerMeta(user),
+        }),
+      },
     });
 
     return {
@@ -492,6 +521,10 @@ export class ChatService {
     }
     if (session.userId !== user.id) {
       throw new ForbiddenError("You do not have access to this conversation.");
+    }
+    const ownerRole = readSessionOwnerRole(session.metadata);
+    if (ownerRole && ownerRole !== user.role) {
+      throw new ForbiddenError("This conversation belongs to a different account type.");
     }
     return session;
   }
@@ -745,7 +778,7 @@ export class ChatService {
         };
       }
 
-      const slotList = availability.slots.slice(0, 5).join(", ");
+      const slotList = availability.slots.slice(0, 5).map(formatClock12).join(", ");
       draft.awaitingConfirmation = false;
       return {
         reply: `I have ${slotList} available on ${draft.date}. Which time works for you?`,
@@ -763,7 +796,7 @@ export class ChatService {
     // Have full draft → ask for confirmation (do not write yet)
     if (!availability.slots.includes(draft.time)) {
       return {
-        reply: `${draft.time} isn't open on ${draft.date}. Pick one of these instead: ${availability.slots.slice(0, 5).join(", ") || "no slots left"}.`,
+        reply: `${formatClock12(draft.time)} isn't open on ${draft.date}. Pick one of these instead: ${availability.slots.slice(0, 5).map(formatClock12).join(", ") || "no slots left"}.`,
         metadata: {
           type: "slots",
           date: draft.date,
@@ -777,7 +810,7 @@ export class ChatService {
 
     draft.awaitingConfirmation = true;
     return {
-      reply: `Great. Would you like me to confirm your ${draft.serviceName ?? "appointment"} on ${draft.date} at ${draft.time}?`,
+      reply: `Great. Would you like me to confirm your ${draft.serviceName ?? "appointment"} on ${draft.date} at ${formatClock12(draft.time)}?`,
       metadata: { type: "confirmation", draft },
       draft,
     };
@@ -814,7 +847,7 @@ export class ChatService {
       });
 
       return {
-        reply: `Your appointment is confirmed for ${appointment.service} on ${draft.date} at ${draft.time}.`,
+        reply: `Your appointment is confirmed for ${appointment.service} on ${draft.date} at ${formatClock12(draft.time!)}.`,
         metadata: { type: "appointment", appointment },
         draft: emptyDraft(),
       };

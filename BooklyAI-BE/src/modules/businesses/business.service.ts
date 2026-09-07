@@ -234,17 +234,19 @@ export class BusinessService {
       });
       await tx.availabilityRule.deleteMany({ where: { businessId } });
 
-      await tx.service.createMany({
-        data: input.services.map((service) => ({
-          businessId,
-          name: service.name,
-          description: service.description ?? null,
-          durationMin: service.durationMin,
-          priceCents: service.priceCents ?? null,
-          imageUrl: service.imageUrl ?? null,
-          isActive: true,
-        })),
-      });
+      if (input.services.length > 0) {
+        await tx.service.createMany({
+          data: input.services.map((service) => ({
+            businessId,
+            name: service.name,
+            description: service.description ?? null,
+            durationMin: service.durationMin,
+            priceCents: service.priceCents ?? null,
+            imageUrl: service.imageUrl ?? null,
+            isActive: true,
+          })),
+        });
+      }
 
       await tx.availabilityRule.createMany({
         data: input.hours.map((rule) => ({

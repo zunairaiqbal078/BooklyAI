@@ -14,6 +14,8 @@ import type { CreateAppointmentInput, ListAppointmentsQuery } from "./appointmen
 
 const ACTIVE: AppointmentStatus[] = ["PENDING", "CONFIRMED"];
 
+const SLOT_TAKEN_MESSAGE = "This appointment slot is no longer available.";
+
 type AppointmentWithRelations = Appointment & {
   business: Pick<Business, "id" | "name" | "slug">;
   service: Pick<Service, "id" | "name" | "durationMin" | "priceCents">;
@@ -72,6 +74,35 @@ const appointmentInclude = {
   review: { select: { id: true } },
 } as const;
 
+function throwSlotConflict(businessId: string, startTime: Date): never {
+  logger.info(
+    {
+      businessId,
+      startTime: startTime.toISOString(),
+      event: "appointment.conflict",
+    },
+    "Appointment conflict",
+  );
+  throw new ConflictError("APPOINTMENT_CONFLICT", SLOT_TAKEN_MESSAGE);
+}
+
+function isOverlapConstraintError(err: unknown): boolean {
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === "P2002"
+  ) {
+    return true;
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes("appointments_no_active_overlap") ||
+    message.includes("exclusion_violation") ||
+    message.includes("23P01")
+  );
+}
+
 export class AppointmentService {
   async create(actor: AuthUser, input: CreateAppointmentInput): Promise<AppointmentDto> {
     if (actor.role !== "CUSTOMER") {
@@ -100,6 +131,7 @@ export class AppointmentService {
 
     const endTime = addMinutes(startTime, service.durationMin);
 
+    // Fast UX check (hours + existing bookings). Authoritative check is inside the lock below.
     const available = await availabilityService.isSlotAvailable({
       businessId: input.businessId,
       serviceId: service.id,
@@ -107,62 +139,60 @@ export class AppointmentService {
     });
 
     if (!available) {
-      throw new ConflictError(
-        "APPOINTMENT_CONFLICT",
-        "This appointment slot is no longer available.",
-      );
+      throwSlotConflict(input.businessId, startTime);
     }
 
-    // Defensive overlap check (race-safe enough for the prototype).
-    const overlap = await prisma.appointment.findFirst({
-      where: {
-        businessId: input.businessId,
-        status: { in: ACTIVE },
-        startTime: { lt: endTime },
-        endTime: { gt: startTime },
-      },
-      select: { id: true },
-    });
+    try {
+      const created = await prisma.$transaction(async (tx) => {
+        // Serialize bookings per business so concurrent creates cannot both pass the overlap check.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.businessId}))`;
 
-    if (overlap) {
+        const overlap = await tx.appointment.findFirst({
+          where: {
+            businessId: input.businessId,
+            status: { in: ACTIVE },
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+          select: { id: true },
+        });
+
+        if (overlap) {
+          throwSlotConflict(input.businessId, startTime);
+        }
+
+        return tx.appointment.create({
+          data: {
+            businessId: input.businessId,
+            customerId: actor.id,
+            serviceId: service.id,
+            startTime,
+            endTime,
+            status: "CONFIRMED",
+            notes: input.notes ?? null,
+          },
+          include: appointmentInclude,
+        });
+      });
+
       logger.info(
         {
-          businessId: input.businessId,
-          startTime: startTime.toISOString(),
-          event: "appointment.conflict",
+          appointmentId: created.id,
+          businessId: created.businessId,
+          customerId: created.customerId,
+          event: "appointment.created",
         },
-        "Appointment conflict",
+        "Appointment created",
       );
-      throw new ConflictError(
-        "APPOINTMENT_CONFLICT",
-        "This appointment slot is no longer available.",
-      );
+
+      return toDto(created);
+    } catch (err) {
+      if (err instanceof ConflictError) throw err;
+      if (isOverlapConstraintError(err)) {
+        throwSlotConflict(input.businessId, startTime);
+      }
+      throw err;
     }
-
-    const created = await prisma.appointment.create({
-      data: {
-        businessId: input.businessId,
-        customerId: actor.id,
-        serviceId: service.id,
-        startTime,
-        endTime,
-        status: "CONFIRMED",
-        notes: input.notes ?? null,
-      },
-      include: appointmentInclude,
-    });
-
-    logger.info(
-      {
-        appointmentId: created.id,
-        businessId: created.businessId,
-        customerId: created.customerId,
-        event: "appointment.created",
-      },
-      "Appointment created",
-    );
-
-    return toDto(created);
   }
 
   async list(actor: AuthUser, query: ListAppointmentsQuery): Promise<AppointmentDto[]> {

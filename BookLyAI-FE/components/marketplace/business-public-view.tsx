@@ -18,6 +18,7 @@ import {
 } from "@/features/marketplace/api";
 import { useAuth } from "@/features/auth/auth-provider";
 import { useLoadWhen } from "@/hooks/use-load-when";
+import { formatClockRange } from "@/lib/datetime";
 import { ApiError } from "@/types";
 
 function formatPrice(cents: number | null): string {
@@ -240,7 +241,7 @@ export function BusinessPublicView() {
                     <li key={`${rule.dayOfWeek}-${rule.startTime}`} className="flex justify-between">
                       <span className="text-muted">{rule.dayLabel}</span>
                       <span>
-                        {rule.startTime}–{rule.endTime}
+                        {formatClockRange(rule.startTime, rule.endTime)}
                       </span>
                     </li>
                   ))}

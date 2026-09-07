@@ -173,7 +173,7 @@ model AvailabilityRule {
   @@map("availability_rules")
 }
 
-/// Booked time range. Overlap prevention is enforced in AppointmentService (Phase 4).
+/// Booked time range. Active overlaps blocked in AppointmentService (advisory lock) + DB exclusion constraint.
 model Appointment {
   id         String            @id @default(uuid()) @db.Uuid
   businessId String            @map("business_id") @db.Uuid

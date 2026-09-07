@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import type { ChatMessageMeta } from "@/features/chat/api";
+import { formatClockTime } from "@/lib/datetime";
 
 type ConfirmationMeta = Extract<ChatMessageMeta, { type: "confirmation" }>;
 
@@ -32,7 +33,9 @@ export function ConfirmationCard({
         </div>
         <div className="flex justify-between gap-4">
           <dt className="text-muted">Time</dt>
-          <dd className="font-medium">{draft.time ?? "—"}</dd>
+          <dd className="font-medium">
+            {draft.time ? formatClockTime(draft.time) : "—"}
+          </dd>
         </div>
       </dl>
       <div className="mt-4 flex flex-wrap gap-2">

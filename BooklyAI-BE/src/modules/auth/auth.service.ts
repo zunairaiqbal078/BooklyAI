@@ -14,7 +14,7 @@ type DbClient = Prisma.TransactionClient | typeof prisma;
 
 function toAuthUser(
   user: Pick<User, "id" | "email" | "name" | "role">,
-  business: { id: string; onboardingComplete: boolean } | null,
+  business: { id: string; onboardingComplete: boolean; coverImageUrl: string | null } | null,
 ): AuthUser {
   return {
     id: user.id,
@@ -23,6 +23,7 @@ function toAuthUser(
     role: user.role,
     businessId: business?.id ?? null,
     onboardingComplete: user.role === "BUSINESS" ? (business?.onboardingComplete ?? false) : null,
+    avatarUrl: business?.coverImageUrl ?? null,
   };
 }
 
@@ -30,14 +31,14 @@ async function resolveBusiness(
   userId: string,
   role: UserRole,
   db: DbClient = prisma,
-): Promise<{ id: string; onboardingComplete: boolean } | null> {
+): Promise<{ id: string; onboardingComplete: boolean; coverImageUrl: string | null } | null> {
   if (role !== "BUSINESS") {
     return null;
   }
 
   const business = await db.business.findUnique({
     where: { ownerId: userId },
-    select: { id: true, onboardingComplete: true },
+    select: { id: true, onboardingComplete: true, coverImageUrl: true },
   });
 
   return business;
@@ -88,7 +89,11 @@ export class AuthService {
         },
       });
 
-      let business: { id: string; onboardingComplete: boolean } | null = null;
+      let business: {
+        id: string;
+        onboardingComplete: boolean;
+        coverImageUrl: string | null;
+      } | null = null;
 
       if (input.role === "BUSINESS") {
         const businessName = input.businessName ?? "Business";
@@ -106,6 +111,7 @@ export class AuthService {
         business = {
           id: createdBusiness.id,
           onboardingComplete: createdBusiness.onboardingComplete,
+          coverImageUrl: createdBusiness.coverImageUrl,
         };
       }
 

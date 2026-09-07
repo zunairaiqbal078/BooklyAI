@@ -53,7 +53,7 @@ export const completeOnboardingSchema = z.object({
   address: z.string().trim().max(200).optional(),
   timezone: z.string().trim().min(2).max(64).default("UTC"),
   coverImageUrl: z.string().url().max(500).optional(),
-  services: z.array(onboardingServiceSchema).min(1).max(20),
+  services: z.array(onboardingServiceSchema).max(20).default([]),
   hours: z.array(onboardingHoursSchema).min(1).max(14),
   publish: z.boolean().default(true),
 });
