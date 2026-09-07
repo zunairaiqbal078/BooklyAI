@@ -1,8 +1,8 @@
 <div align="center">
 
-#  BooklyAI
+# BooklyAI
 
-**Intelligent, Conversational Appointment Booking Platform with Zero Double-Bookings**
+**Intelligent, Conversational Appointment Booking Platform with Guaranteed Zero Double-Bookings**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
@@ -10,56 +10,72 @@
 [![Express.js](https://img.shields.io/badge/Express.js-5.2-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-6.16-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Mistral AI](https://img.shields.io/badge/Mistral_AI-Integrated-FD6F00?style=for-the-badge&logo=ai&logoColor=white)](https://mistral.ai/)
+[![Groq](https://img.shields.io/badge/Groq_API-Integrated-F55036?style=for-the-badge&logo=fastapi&logoColor=white)](https://groq.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Vitest](https://img.shields.io/badge/Vitest-Passing-6E9F18?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 
 <br />
 
 <p align="center">
-  <b>BooklyAI</b> bridges the gap between natural language convenience and deterministic scheduling precision. Customers schedule appointments naturally through an intelligent conversational assistant or structured forms, while businesses gain full control over their calendar, availability rules, and service catalog with guaranteed zero overlap.
+  <b>BooklyAI</b> bridges natural language conversational ease with deterministic scheduling precision. Customers schedule appointments effortlessly through an intelligent AI assistant or structured fast-booking forms, while businesses get complete control over operating hours, service catalogs, promotional offers, and calendar schedules—backed by strict concurrency controls that mathematically eliminate double-bookings.
 </p>
 
+[Overview](#-overview) •
 [Key Features](#-key-features) •
-[Architecture](#-system-architecture) •
+[System Architecture](#-system-architecture) •
 [Tech Stack](#-tech-stack) •
+[Project Structure](#-project-structure) •
 [Quick Start](#-quick-start) •
-[Demo Credentials](#-demo-credentials) •
-[API Reference](#-api-reference)
+[Demo Accounts](#-demo-accounts) •
+[API Reference](#-api-reference) •
+[Environment Variables](#️-environment-variables) •
+[Testing](#-testing--validation)
 
 </div>
 
 ---
 
+## 📖 Overview
+
+Most modern booking platforms force users through rigid multi-step date pickers, while AI chat experiments often suffer from hallucinated slots and concurrency race conditions. 
+
+**BooklyAI solves both problems with a decoupled architecture:**
+
+1. **For Customers:** Discover local businesses (Salons, Clinics, Spas, Wellness, Fitness), explore promotional offers and verified reviews, and book appointments via a conversational AI assistant that understands flexible human language (e.g., *"Book a haircut next Friday afternoon"*) or through a rapid traditional fallback form.
+2. **For Businesses:** A complete management hub featuring guided onboarding with Google Places lookup, weekly availability schedule configuration, catalog management with image uploads, promotional offers, customer reviews, and a synchronized interactive calendar.
+3. **Deterministic Core:** The LLM is strictly an **intent parser**. It never writes directly to the database or guesses open times. Open slots are computed strictly from real business operating hours and current bookings, protected at the database level with transactional advisory locks (`pg_advisory_xact_lock`) and interval collision checks (`startA < endB && endA > startB`).
+
+---
+
 ## ✨ Key Features
 
-### 🤖 Intelligent AI Booking Assistant
-- **Natural Language Scheduling:** Powered by Mistral AI to parse intents, extract dates, times, and preferred services directly from natural conversation.
-- **Multi-Turn Memory:** Preserves conversational context across messages, maintaining ongoing draft states without losing information.
-- **Fail-Safe Deterministic Fallback:** If the AI service is unavailable or lacks API keys, a deterministic heuristic parser seamlessly takes over, ensuring zero downtime for customers.
-- **Real Availability Enforcement:** The LLM **never** hallucinates open slots or interacts with the database directly. All slot options originate from real business calendar availability rules.
+### 🤖 Intelligent Conversational Booking Assistant
+- **Natural Language Intent Extraction:** Powered by Groq API (`openai/gpt-oss-20b`) for ultra-low latency conversational parsing, extracting desired dates, times, and services from unstructured messages.
+- **Multi-Turn Context & Draft Memory:** Remembers conversation history across multiple turns and keeps track of draft booking state until the user is ready to confirm.
+- **Zero-Downtime Deterministic Fallback:** If the AI provider is offline or no API key is provided, a built-in deterministic heuristic parser immediately takes over without interrupting user flows.
+- **No Hallucinated Slots:** Slot suggestions are generated by the backend availability engine based on real business rules and existing reservations.
 
-### 🛡️ Strict Overlap & Conflict Prevention
-- **Zero Double-Bookings:** Enforces atomic slot verification using the interval conflict formula (`startA < endB && endA > startB`).
-- **Dynamic Weekly Rules:** Configurable recurring availability rules per business (e.g., Mon–Fri, 09:00–17:00, 30-minute intervals).
-- **Automated Reclaiming:** Cancelled or completed appointments immediately restore availability to the public calendar.
+### 🌐 Marketplace & Business Discovery
+- **Local Service Exploration (`/explore`):** Filter businesses by city, service category (Wellness, Salon, Clinic, Spa, Fitness), minimum rating, and price ranges.
+- **Interactive Map & Places:** Integrated Google Maps view with advanced markers and Google Places autocomplete for addresses.
+- **Public Business Storefronts (`/businesses/[slug]`):** Dedicated landing pages showcasing business bios, operating hours, verified star ratings, customer reviews, promotional packages, and full service menus.
 
-### 🔐 Enterprise-Grade Security & Authentication
-- **HttpOnly Cookie Sessions:** JWT authentication stored securely in `HttpOnly`, `SameSite` cookies. Zero exposure to client-side JavaScript or `localStorage` to prevent XSS attacks.
-- **Role-Based Access Control (RBAC):** Distinct workflows and guarded routes for `CUSTOMER` and `BUSINESS` users.
-- **Data Protection:** Robust bcrypt password hashing, request rate-limiting, Helmet security headers, and strict Zod payload validation.
+### 🛡️ Concurrency & Overlap Prevention
+- **Mathematical Slot Guarantee:** Enforces overlap prevention using interval intersection:
+  $$\text{Overlap} \iff (\text{Start}_A < \text{End}_B) \land (\text{End}_A > \text{Start}_B)$$
+- **PostgreSQL Advisory Locks:** Critical booking operations acquire transactional advisory locks during slot verification and creation, eliminating race conditions during high concurrent traffic.
+- **Automated Slot Reclaiming:** When an appointment is cancelled, the slot is immediately released back to the public calendar.
 
 ### 🏢 Business Management Suite
-- **Interactive Calendar:** Visual, role-aware monthly and daily calendar views highlighting confirmed, pending, and completed appointments.
-- **Service Catalog Management:** Create and manage distinct bookable services with customized duration, descriptions, and active status.
-- **Business Operations:** Complete visibility into bookings, customer profiles, and schedule constraints.
+- **Interactive Visual Calendar (`/calendar`):** Month and day schedule views with color-coded status badges (`PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED`).
+- **Guided Onboarding Wizard (`/onboarding`):** Step-by-step setup for new business owners to configure business category, address, timezone, weekly hours grid, and initial services.
+- **Service & Showcase Offer Management:** Create and update services (name, duration, price, active status) and promotional offers with image uploads via Multer.
+- **Appointment Lifecycle & Reviews:** Mark appointments complete, request customer reviews, and monitor automatically aggregated review scores (`ratingAvg` & `reviewCount`).
 
-### 🗓️ Customer Portal
-- **Conversational & Traditional Booking:** Choose between chat-based assistant scheduling with quick-prompt chips or a high-speed fallback form.
-- **Appointment Lifecycle:** View upcoming and past appointments with real-time status badges and one-click cancellation.
-
-### 🎨 Editorial Design System
-- **Warm Light-Theme Aesthetic:** Warm parchment canvas, sage and deep teal accents, refined typography with `Instrument Sans` and `Newsreader`.
-- **Responsive & Accessible:** Fluid layouts optimized for desktop, tablet, and mobile with bottom-navigation integration.
+### 🔐 Enterprise Security & Architecture
+- **HttpOnly Cookie Sessions:** JWT tokens are stored exclusively in `HttpOnly`, `SameSite` cookies with CORS credentials enabled—completely inaccessible to client-side scripts to defend against XSS.
+- **Role-Based Access Control (RBAC):** Strict isolation between `CUSTOMER` and `BUSINESS` permissions across both backend middleware and frontend navigation guards.
+- **Defensive API Hardening:** Request rate limiting (`express-rate-limit`), Helmet security headers, bcrypt password hashing, and strict Zod validation on every route.
 
 ---
 
@@ -75,7 +91,7 @@ BooklyAI strictly decouples AI natural language interpretation from database mut
                                                 │ Credentials: 'include' (HttpOnly Cookie)
                                                 ▼
                             ┌────────────────────────────────────────┐
-                            │          Express REST API              │
+                            │          Express 5 REST API            │
                             │  Security, Rate Limiting & Validation  │
                             └───────┬───────────────┬────────────────┘
                                     │               │
@@ -89,22 +105,23 @@ BooklyAI strictly decouples AI natural language interpretation from database mut
                      │           ┌────────┴────────┐               ▼
                      │           ▼                 ▼       ┌───────────────┐
                      │   ┌───────────────┐ ┌─────────────┐ │  AI Service   │
-                     │   │ Availability  │ │ Business    │ │ (Mistral API  │
-                     │   │ Engine        │ │ Services    │ │  + Heuristic) │
+                     │   │ Availability  │ │ Marketplace │ │  Groq LLM     │
+                     │   │ Engine        │ │ & Catalog   │ │ + Heuristic   │
                      │   └───────┬───────┘ └──────┬──────┘ └───────┬───────┘
                      │           │                │                │
                      └───────────┼────────────────┼────────────────┘
                                  ▼                ▼
                             ┌────────────────────────────────────────┐
-                            │               Prisma ORM               │
+                            │            Prisma ORM 6                │
+                            │   Advisory Locks & Exclusion Rules     │
                             └───────────────────┬────────────────────┘
                                                 ▼
                             ┌────────────────────────────────────────┐
-                            │        PostgreSQL Database             │
+                            │        PostgreSQL 16 Database          │
                             └────────────────────────────────────────┘
 ```
 
-> **Design Principle:** The AI never talks directly to Prisma or invents slots. The chat service asks the AI for structured intent, and the backend availability engine applies strict domain rules.
+> **Core Philosophy:** The AI service is a stateless natural language interpreter. It extracts intent and parameters from text, which are then passed to the deterministic backend engine for strict rule validation and transaction processing.
 
 ---
 
@@ -112,12 +129,15 @@ BooklyAI strictly decouples AI natural language interpretation from database mut
 
 | Layer | Technologies |
 | :--- | :--- |
-| **Frontend** | [Next.js 16](https://nextjs.org/) (App Router, Turbopack), [React 19](https://react.dev/), [TypeScript 5](https://www.typescriptlang.org/), [Tailwind CSS v4](https://tailwindcss.com/), [Zustand](https://github.com/pmndrs/zustand), [clsx](https://github.com/lukeed/clsx) |
-| **Backend** | [Node.js 20+](https://nodejs.org/), [Express 5](https://expressjs.com/), [TypeScript](https://www.typescriptlang.org/), [Zod](https://zod.dev/), [Pino](https://github.com/pinojs/pino), [Helmet](https://helmetjs.github.io/) |
-| **Database & ORM** | [PostgreSQL 16](https://www.postgresql.org/), [Prisma ORM 6](https://www.prisma.io/), Docker Compose |
-| **AI & NLP** | [Mistral AI API](https://mistral.ai/) (`mistral-small-latest`) with deterministic heuristic fallback parser |
-| **Security** | HttpOnly Cookie JWT, Bcrypt password hashing, Express Rate Limit, CORS isolation |
-| **Testing** | [Vitest](https://vitest.dev/), Supertest |
+| **Frontend Framework** | [Next.js 16](https://nextjs.org/) (App Router, Turbopack), [React 19](https://react.dev/), [TypeScript 5](https://www.typescriptlang.org/) |
+| **Styling & Design System** | [Tailwind CSS v4](https://tailwindcss.com/), Warm Editorial palette (`Instrument Sans`, `Newsreader`, `Geist Mono`), [clsx](https://github.com/lukeed/clsx), [tailwind-merge](https://github.com/dcastil/tailwind-merge) |
+| **State Management** | [Zustand 5](https://github.com/pmndrs/zustand) |
+| **Backend Framework** | [Express 5](https://expressjs.com/), [Node.js 20+](https://nodejs.org/), [TypeScript 5](https://www.typescriptlang.org/) |
+| **Database & ORM** | [PostgreSQL 16](https://www.postgresql.org/) (Dockerized), [Prisma ORM 6](https://www.prisma.io/) |
+| **AI & NLP** | [Groq Cloud API](https://groq.com/) (`openai/gpt-oss-20b`) + Deterministic Heuristic Fallback Parser |
+| **Security & Auth** | HttpOnly Cookie-based JWT, [Bcrypt.js](https://github.com/dcodeIO/bcrypt.js), [Helmet](https://helmetjs.github.io/), [Express Rate Limit](https://express-rate-limit.mintlify.app/) |
+| **Validation & Utilities** | [Zod 4](https://zod.dev/), [Multer](https://github.com/expressjs/multer) (File Uploads), [Pino](https://getpino.io/) (Structured Logging) |
+| **Testing** | [Vitest 4](https://vitest.dev/), [Supertest 7](https://github.com/ladjs/supertest) |
 
 ---
 
@@ -125,42 +145,71 @@ BooklyAI strictly decouples AI natural language interpretation from database mut
 
 ```
 BooklyAI/
-├── BookLyAI-FE/                      # Next.js Frontend Application
-│   ├── app/                          # App Router pages
-│   │   ├── (auth)/                   # Login & Signup flows
-│   │   ├── appointments/             # Appointment listing & details
-│   │   ├── assistant/                # AI Conversational assistant UI
+├── BookLyAI-FE/                      # Frontend Next.js 16 Application
+│   ├── app/                          # App Router pages & routes
+│   │   ├── appointments/             # Customer appointments listing
+│   │   ├── assistant/                # AI Conversational booking assistant
+│   │   ├── businesses/[slug]/        # Public business storefront & profile
 │   │   ├── calendar/                 # Role-aware interactive calendar
-│   │   ├── dashboard/                # Business / Customer dashboard
-│   │   ├── globals.css               # Design tokens & Tailwind CSS
-│   │   └── page.tsx                  # Brand-forward landing page
-│   ├── components/                   # UI components, layout, modals, chat
-│   ├── constants/                    # Application routes & prompt suggestions
-│   ├── features/                     # Feature-specific state and logic
+│   │   ├── catalog/                  # Service catalog & offers view
+│   │   ├── dashboard/                # Business & customer management dashboards
+│   │   ├── explore/                  # Marketplace search & discovery (Map/List)
+│   │   ├── login/                    # Authentication sign-in
+│   │   ├── onboarding/               # Business owner setup wizard
+│   │   ├── signup/                   # User & business owner registration
+│   │   ├── globals.css               # Design tokens, keyframe animations, styling
+│   │   └── page.tsx                  # Marketing homepage
+│   ├── components/                   # Modular UI & feature components
+│   │   ├── appointments/             # Appointment lists, cards, review modals
+│   │   ├── auth/                     # Role selector, login & signup forms
+│   │   ├── calendar/                 # Monthly & daily calendar views
+│   │   ├── catalog/                  # Service lists, offer cards
+│   │   ├── chat/                     # Message feed, input, typing indicators, chips
+│   │   ├── dashboard/                # Analytics counters, schedule management
+│   │   ├── landing/                  # Hero, feature highlights, workflow sections
+│   │   ├── layout/                   # Navbar, footer, user session badges
+│   │   ├── maps/                     # Google Maps & Places integration
+│   │   ├── marketplace/              # Search filters, business cards, city pills
+│   │   ├── onboarding/               # Guided onboarding steps & hours picker
+│   │   └── ui/                       # Reusable primitives (buttons, modals, inputs)
+│   ├── constants/                    # Routes, prompt chips, navigation config
+│   ├── features/                     # Feature API callers (auth, chat, marketplace)
 │   ├── hooks/                        # Custom React hooks
-│   ├── lib/                          # HTTP client with credential forwarding
+│   ├── lib/                          # HTTP client with credentials & error handling
 │   ├── stores/                       # Zustand client state stores
-│   └── types/                        # TypeScript domain types
+│   └── types/                        # Shared TypeScript domain contracts
 │
-├── BooklyAI-BE/                      # Express Backend API
-│   ├── docker-compose.yml            # Containerized PostgreSQL service
+├── BooklyAI-BE/                      # Backend Express 5 REST API
+│   ├── docker-compose.yml            # Local PostgreSQL 16 container definition
 │   ├── prisma/
-│   │   ├── schema.prisma             # Multi-tenant relational schema
-│   │   ├── migrations/               # Versioned migration history
-│   │   └── seed.ts                   # Comprehensive seed data script
+│   │   ├── schema.prisma             # Relational data schema (Users, Businesses, etc.)
+│   │   ├── migrations/               # PostgreSQL versioned migrations
+│   │   └── seed.ts                   # Comprehensive test database seeder
 │   ├── src/
-│   │   ├── ai/                       # Mistral service, prompts, intent parser
-│   │   ├── config/                   # Typed environment, logger, DB client
-│   │   ├── middleware/               # Auth, rate-limiting, error handling
-│   │   ├── modules/                  # Auth, Appointments, Availability, Chat
-│   │   ├── types/                    # Shared backend interfaces & DTOs
-│   │   ├── utils/                    # Time calculation, JWT, slug generators
-│   │   ├── app.ts                    # Express application configuration
+│   │   ├── ai/                       # Groq LLM integration, prompt templates, heuristic parser
+│   │   ├── config/                   # Typed environment loader, logger, CORS
+│   │   ├── middleware/               # JWT auth, RBAC guards, rate limiter, error handler
+│   │   ├── modules/                  # Feature domain modules
+│   │   │   ├── appointments/         # Booking logic, conflict detection, advisory locks
+│   │   │   ├── auth/                 # Registration, login, cookie issuance, /me
+│   │   │   ├── availability/         # Operating hours computation, free slot generator
+│   │   │   ├── businesses/           # Business CRUD, onboarding, hours, services
+│   │   │   ├── calendar/             # Date-range event aggregation
+│   │   │   ├── chat/                 # Sessions, message history, intent execution
+│   │   │   ├── health/               # API uptime health check
+│   │   │   ├── marketplace/          # Public discovery by city, category, slug
+│   │   │   ├── offers/               # Promotional showcase packages
+│   │   │   ├── reviews/              # Ratings, comments, review aggregations
+│   │   │   ├── services/             # Bookable services endpoints
+│   │   │   └── uploads/              # Multer file upload pipeline & image storage
+│   │   ├── types/                    # Express extensions, DTOs, domain models
+│   │   ├── utils/                    # Slug generators, time utilities, API responders
+│   │   ├── app.ts                    # Express application factory
 │   │   └── server.ts                 # Server entrypoint
 │   └── vitest.config.ts              # Unit and integration test runner
 │
-├── .gitignore                        # Global monorepo ignore rules
-└── README.md                         # Main documentation
+├── .gitignore                        # Root git ignore rules
+└── README.md                         # Project documentation
 ```
 
 ---
@@ -170,19 +219,19 @@ BooklyAI/
 ### Prerequisites
 - **Node.js**: `v20.x` or higher
 - **npm**: `v10.x` or higher
-- **Docker & Docker Compose**: For local PostgreSQL
+- **Docker & Docker Compose**: For containerized PostgreSQL
 
 ---
 
 ### 1. Database Setup
 
-Spin up the local PostgreSQL instance via Docker Compose:
+Launch the local PostgreSQL 16 container via Docker Compose:
 
 ```bash
 cd BooklyAI-BE
 docker compose up -d
 ```
-*PostgreSQL will be running on `localhost:5433` (isolated from standard 5432 ports).*
+> PostgreSQL will run on port `localhost:5433` to prevent conflicts with default local PostgreSQL instances.
 
 ---
 
@@ -191,7 +240,7 @@ docker compose up -d
 From the `BooklyAI-BE` directory:
 
 ```bash
-# Copy sample environment configuration
+# Copy environment configuration
 cp .env.example .env
 
 # Install backend dependencies
@@ -200,21 +249,21 @@ npm install
 # Run database migrations
 npx prisma migrate dev
 
-# Seed database with demo accounts, business rules, and services
-npx prisma db seed
+# Seed database with demo accounts, businesses, services, and appointments
+npm run prisma:seed
 
-# Launch development server with live reload
+# Start development server with live reload
 npm run dev
 ```
 
-- **API URL:** [http://localhost:4000](http://localhost:4000)
-- **Health Check:** [http://localhost:4000/health](http://localhost:4000/health)
+- **API Base URL:** [http://localhost:4000](http://localhost:4000)
+- **Health Endpoint:** [http://localhost:4000/health](http://localhost:4000/health)
 
 ---
 
 ### 3. Frontend Setup
 
-In a new terminal, navigate to `BookLyAI-FE`:
+In a new terminal window, navigate to `BookLyAI-FE`:
 
 ```bash
 cd BookLyAI-FE
@@ -225,7 +274,7 @@ cp .env.example .env.local
 # Install frontend dependencies
 npm install
 
-# Launch Next.js Turbopack development server
+# Start Next.js Turbopack development server
 npm run dev
 ```
 
@@ -233,22 +282,22 @@ npm run dev
 
 ---
 
-## 🔑 Demo Credentials
+## 🔑 Demo Accounts
 
-The database seed provides ready-to-test accounts for both platform roles:
+The database seed provides four ready-to-test accounts representing both platform roles and different business categories:
 
-| Role | Email | Password | Access & Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Customer** | `customer@booklyai.dev` | `Demo1234!` | Conversational AI booking, upcoming appointments, appointment cancellation. |
-| **Business Owner** | `business@booklyai.dev` | `Demo1234!` | Business dashboard, full calendar schedule, service configuration, conflict monitoring. |
-
-> **Pre-seeded Business:** *Northside Wellness* (`northside-wellness`) with active consultation services, Monday–Friday availability (09:00–17:00), and sample booked appointments.
+| Account Type | Name / Business | Email | Password | Role & Scope |
+| :--- | :--- | :--- | :--- | :--- |
+| **Customer** | Ava Chen | `customer@booklyai.dev` | `Demo1234!` | Conversational booking, appointments history, cancellation, reviews. |
+| **Customer (Secondary)** | Sam Rivera | `customer2@booklyai.dev` | `Demo1234!` | Additional customer profile with completed appointments and reviews. |
+| **Business Owner (Wellness)** | Jordan Blake (`Northside Wellness`) | `business@booklyai.dev` | `Demo1234!` | Full business dashboard, calendar, consultations & follow-ups, hours. |
+| **Business Owner (Salon)** | Maya Ortiz (`Lumen Hair Studio`) | `salon@booklyai.dev` | `Demo1234!` | Salon storefront, haircut & color services, promotional offers. |
 
 ---
 
 ## 🔌 API Reference
 
-### Authentication (`/api/auth`)
+### 🔐 Authentication (`/api/auth`)
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
 | `POST` | `/api/auth/register` | Register customer or business owner account | No |
@@ -256,31 +305,59 @@ The database seed provides ready-to-test accounts for both platform roles:
 | `POST` | `/api/auth/logout` | Clear authentication session cookie | Yes |
 | `GET` | `/api/auth/me` | Retrieve current authenticated user profile | Yes |
 
-### Appointments & Scheduling (`/api/appointments`, `/api/availability`)
+### 🌐 Marketplace & Discovery (`/api/marketplace`)
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
-| `GET` | `/api/availability` | Fetch available business time slots for a given date | No |
-| `POST` | `/api/appointments` | Book an appointment with overlap conflict validation | Yes (Customer) |
-| `GET` | `/api/appointments` | List appointments for authenticated user | Yes |
-| `GET` | `/api/appointments/:id` | Get detailed information for a specific appointment | Yes |
-| `PATCH` | `/api/appointments/:id/cancel` | Cancel an appointment and free the time slot | Yes |
-| `GET` | `/api/calendar` | Retrieve calendar events within a date range | Yes |
+| `GET` | `/api/marketplace/cities` | List unique cities with active businesses | No |
+| `GET` | `/api/marketplace/businesses` | Filter businesses by category, city, search query | No |
+| `GET` | `/api/marketplace/businesses/:slug` | Get full public business profile by slug | No |
 
-### AI Conversational Assistant (`/api/chat`)
+### 📅 Availability & Calendar (`/api/availability`, `/api/calendar`)
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
-| `POST` | `/api/chat/sessions` | Initialize a new conversational booking session | Yes (Customer) |
-| `GET` | `/api/chat/sessions/:id/messages`| Fetch complete conversation message history | Yes (Customer) |
-| `POST` | `/api/chat/messages` | Send user message, execute AI intent extraction | Yes (Customer) |
-| `POST` | `/api/chat/book` | Book directly via in-chat fallback form | Yes (Customer) |
+| `GET` | `/api/availability` | Calculate bookable time slots for a business and date | Yes |
+| `GET` | `/api/calendar` | Retrieve calendar events for authenticated user/business | Yes |
 
-### Catalog & Businesses (`/api/businesses`, `/api/services`)
+### 📋 Appointments (`/api/appointments`)
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
-| `GET` | `/api/businesses` | List all active businesses | No |
-| `GET` | `/api/businesses/:id` | Get business details by ID or slug | No |
-| `GET` | `/api/businesses/:id/services`| List bookable services for a business | No |
-| `GET` | `/api/services` | List all available services | No |
+| `POST` | `/api/appointments` | Book appointment with atomic overlap prevention | Yes (`CUSTOMER`) |
+| `GET` | `/api/appointments` | List appointments (filtered by status or role) | Yes |
+| `GET` | `/api/appointments/:id` | Get appointment details | Yes |
+| `PATCH` | `/api/appointments/:id/cancel` | Cancel appointment and free time slot | Yes |
+| `PATCH` | `/api/appointments/:id/complete` | Mark appointment as completed | Yes (`BUSINESS`) |
+| `PATCH` | `/api/appointments/:id/request-review` | Trigger review request for completed appointment | Yes (`BUSINESS`) |
+| `POST` | `/api/appointments/:id/reviews` | Submit rating (1-5) and feedback review | Yes (`CUSTOMER`) |
+
+### 💬 Conversational AI Assistant (`/api/chat`)
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `POST` | `/api/chat/sessions` | Create or fetch existing chat session | Yes |
+| `GET` | `/api/chat/sessions/:id/messages`| Retrieve conversation message history | Yes |
+| `POST` | `/api/chat/messages` | Send message, extract intent (Groq/heuristic) | Yes |
+| `POST` | `/api/chat/book` | Quick booking from chat fallback form | Yes (`CUSTOMER`) |
+
+### 🏢 Business Owner Management (`/api/businesses`, `/api/services`)
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `GET` | `/api/businesses/me` | Fetch owned business profile and settings | Yes (`BUSINESS`) |
+| `PATCH` | `/api/businesses/me` | Update business bio, category, cover image | Yes (`BUSINESS`) |
+| `POST` | `/api/businesses/me/onboarding` | Complete guided onboarding setup | Yes (`BUSINESS`) |
+| `POST` | `/api/businesses/me/services` | Create new bookable service | Yes (`BUSINESS`) |
+| `PATCH` | `/api/businesses/me/services/:id` | Update service pricing, duration, or active status | Yes (`BUSINESS`) |
+| `DELETE` | `/api/businesses/me/services/:id` | Soft delete/deactivate service | Yes (`BUSINESS`) |
+| `PUT` | `/api/businesses/me/hours` | Replace weekly availability schedule rules | Yes (`BUSINESS`) |
+| `GET` | `/api/businesses/:id/services` | List active services for a specific business | No |
+| `GET` | `/api/services` | List all bookable services | Yes |
+
+### 🎁 Offers & File Uploads (`/api/offers`, `/api/uploads`)
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| `GET` | `/api/offers` | List promotional offers for owned business | Yes (`BUSINESS`) |
+| `POST` | `/api/offers` | Create promotional showcase offer | Yes (`BUSINESS`) |
+| `PATCH` | `/api/offers/:id` | Update promotional offer details | Yes (`BUSINESS`) |
+| `DELETE` | `/api/offers/:id` | Remove promotional offer | Yes (`BUSINESS`) |
+| `POST` | `/api/uploads/image` | Upload image (services, offers, cover photo) | Yes (`BUSINESS`) |
 
 ---
 
@@ -290,49 +367,54 @@ The database seed provides ready-to-test accounts for both platform roles:
 | Variable | Description | Example / Default |
 | :--- | :--- | :--- |
 | `PORT` | API server listening port | `4000` |
-| `NODE_ENV` | Runtime environment | `development` |
+| `NODE_ENV` | Runtime environment (`development`, `test`, `production`) | `development` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5433/booklyai?schema=public` |
-| `JWT_SECRET` | Secret key used to sign session JWTs (min 32 chars) | `your-secure-random-jwt-secret-min-32-chars` |
-| `JWT_EXPIRES_IN_DAYS` | Token and cookie expiration period (days) | `7` |
+| `JWT_SECRET` | Secret key used to sign session JWTs (minimum 32 chars) | `your-secure-random-jwt-secret-min-32-chars` |
+| `JWT_EXPIRES_IN_DAYS` | Token and cookie expiration duration (days) | `7` |
 | `AUTH_COOKIE_NAME` | Name of the HttpOnly session cookie | `booklyai_token` |
 | `FRONTEND_URL` | Allowed CORS origin | `http://localhost:3000` |
-| `MISTRAL_API_KEY` | Mistral AI API key (optional: fallback parser active) | `your_mistral_api_key` |
-| `MISTRAL_MODEL` | Target Mistral model | `mistral-small-latest` |
+| `PUBLIC_API_URL` | Public origin for uploaded static image files | `http://localhost:4000` |
+| `GROQ_API_KEY` | Groq Cloud API key (optional: heuristic parser used if omitted) | `gsk_...` |
+| `GROQ_MODEL` | Target Groq LLM model | `openai/gpt-oss-20b` |
 
 ### Frontend (`BookLyAI-FE/.env.local`)
 | Variable | Description | Example / Default |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_API_URL` | Origin URL for the backend API | `http://localhost:4000` |
+| `NEXT_PUBLIC_API_URL` | Target backend API origin | `http://localhost:4000` |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`| Optional Google Maps API key for search & maps | `AIzaSy...` |
+| `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | Optional Map ID for Google Advanced Markers | `4a8f...` |
 
 ---
 
 ## 🧪 Testing & Validation
 
-BooklyAI includes automated unit and integration tests verifying authentication, overlap prevention, availability generation, and AI intent parsing.
+BooklyAI features an automated test suite covering authentication, appointment creation, concurrency lock enforcement, slot generation, and natural language intent parsing.
 
-Run the test suite from `BooklyAI-BE`:
+### Running Backend Tests
+Execute the Vitest test runner from `BooklyAI-BE`:
 
 ```bash
 cd BooklyAI-BE
 npm test
 ```
 
-```
- ✓ src/modules/appointments/appointment.test.ts (7 tests)
+```text
+ ✓ src/modules/appointments/appointment.test.ts (9 tests)
  ✓ src/modules/auth/auth.test.ts (8 tests)
  ✓ src/modules/chat/chat.test.ts (3 tests)
- ✓ src/ai/ai.parser.test.ts (5 tests)
- ✓ src/utils/time.test.ts (3 tests)
- ✓ src/modules/auth/authorization.test.ts (3 tests)
- ✓ src/utils/jwt.test.ts (2 tests)
+ ✓ src/modules/auth/authorization.test.ts (4 tests)
  ✓ src/modules/health/health.test.ts (1 test)
+ ✓ src/ai/ai.parser.test.ts (7 tests)
+ ✓ src/utils/jwt.test.ts (2 tests)
+ ✓ src/utils/time.test.ts (3 tests)
  ✓ src/utils/slug.test.ts (2 tests)
 
  Test Files  9 passed (9)
-      Tests  34 passed (34)
+      Tests  39 passed (39)
 ```
 
-To test the Next.js production build:
+### Validating Frontend Production Build
+Verify Next.js build integrity and TypeScript compilation:
 
 ```bash
 cd BookLyAI-FE
@@ -343,10 +425,10 @@ npm run build
 
 ## 📄 License
 
-This project is licensed under the MIT License — feel free to explore, modify, and build upon it.
+This project is licensed under the [MIT License](LICENSE) — feel free to explore, customize, and extend.
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for intelligent scheduling. Designed with Next.js, Express, PostgreSQL, and Mistral AI.</sub>
+  <sub>Crafted for modern scheduling. Built with Next.js, Express, PostgreSQL, Prisma, and Groq.</sub>
 </div>
