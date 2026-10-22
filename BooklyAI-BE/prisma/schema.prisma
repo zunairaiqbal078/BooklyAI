@@ -34,6 +34,21 @@ enum BusinessCategory {
   OTHER
 }
 
+enum StaffPermission {
+  VIEW_CALENDAR
+  MANAGE_CALENDAR
+  CHAT_CLIENTS
+  MANAGE_SERVICES
+  MANAGE_STAFF
+  VIEW_ANALYTICS
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 /// Authenticated account. BUSINESS users own exactly one Business via Business.ownerId.
 model User {
   id           String   @id @default(uuid()) @db.Uuid
@@ -49,6 +64,7 @@ model User {
   reviews       Review[]
   chatSessions  ChatSession[]
   aiInteractions AiInteraction[]
+  staffProfiles StaffMember[]
 
   @@index([role])
   @@map("users")
@@ -80,6 +96,7 @@ model Business {
   reviews           Review[]
   availabilityRules AvailabilityRule[]
   appointments      Appointment[]
+  staffMembers      StaffMember[]
 
   @@index([category])
   @@index([city])
@@ -106,6 +123,7 @@ model Service {
   appointments Appointment[]
   offers       Offer[]
   reviews      Review[]
+  staffMembers StaffMember[] @relation("ServiceStaff")
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -190,15 +208,19 @@ model Appointment {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer User     @relation("CustomerAppointments", fields: [customerId], references: [id], onDelete: Cascade)
   service  Service  @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  staffId  String?  @map("staff_id") @db.Uuid
+  staff    StaffMember? @relation(fields: [staffId], references: [id], onDelete: SetNull)
   review   Review?
 
   @@index([customerId])
   @@index([businessId])
+  @@index([staffId])
   @@index([status])
   @@index([startTime])
   @@index([businessId, startTime])
   @@index([businessId, status, startTime])
   @@index([customerId, status, startTime])
+  @@index([staffId, status, startTime])
   @@map("appointments")
 }
 
@@ -255,4 +277,63 @@ model AiInteraction {
   @@index([requestAt])
   @@index([intent])
   @@map("ai_interactions")
+}
+
+/// Staff member / practitioner working at a business.
+model StaffMember {
+  id          String            @id @default(uuid()) @db.Uuid
+  businessId  String            @map("business_id") @db.Uuid
+  userId      String?           @map("user_id") @db.Uuid
+  name        String
+  email       String?
+  phone       String?
+  title       String            @default("Team Member")
+  avatarUrl   String?           @map("avatar_url")
+  isActive    Boolean           @default(true) @map("is_active")
+  permissions StaffPermission[] @default([VIEW_CALENDAR])
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  business          Business                @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user              User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  availabilityRules StaffAvailabilityRule[]
+  leaves            StaffLeave[]
+  appointments      Appointment[]
+  services          Service[]               @relation("ServiceStaff")
+
+  @@index([businessId])
+  @@index([businessId, isActive])
+  @@map("staff_members")
+}
+
+/// Staff individual working hours shift overriding business hours
+model StaffAvailabilityRule {
+  id        String @id @default(uuid()) @db.Uuid
+  staffId   String @map("staff_id") @db.Uuid
+  dayOfWeek Int    @map("day_of_week") // 0 = Sunday ... 6 = Saturday
+  startTime String @map("start_time") // HH:mm
+  endTime   String @map("end_time") // HH:mm
+
+  staff StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([staffId, dayOfWeek])
+  @@map("staff_availability_rules")
+}
+
+/// Staff leave / time off (vacation, sick day, etc.)
+model StaffLeave {
+  id        String      @id @default(uuid()) @db.Uuid
+  staffId   String      @map("staff_id") @db.Uuid
+  startDate DateTime    @map("start_date")
+  endDate   DateTime    @map("end_date")
+  reason    String?
+  status    LeaveStatus @default(APPROVED)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  staff StaffMember @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([staffId, startDate, endDate])
+  @@map("staff_leaves")
 }

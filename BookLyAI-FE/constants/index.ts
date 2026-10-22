@@ -12,6 +12,7 @@ export const ROUTES = {
   explore: "/explore",
   onboarding: "/onboarding",
   catalog: "/catalog",
+  team: "/team",
   business: (slug: string) => `/businesses/${slug}`,
 } as const;
 

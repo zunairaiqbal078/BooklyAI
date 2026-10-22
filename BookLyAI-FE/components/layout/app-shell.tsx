@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { RequireAuth } from "@/components/auth/route-guards";
 import { SiteHeader } from "@/components/layout/site-header";
 import { MobileAppNav } from "@/components/layout/mobile-app-nav";
+import { BusinessSidebarLayout } from "@/components/layout/business-sidebar-layout";
+import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
 
 export function AppShell({
@@ -15,6 +17,17 @@ export function AppShell({
   /** @deprecated Footer removed — prop kept optional for call-site compatibility. */
   hideFooter?: boolean;
 }) {
+  const { user } = useAuth();
+  const isBusiness = user?.role === "BUSINESS";
+
+  if (isBusiness) {
+    return (
+      <RequireAuth>
+        <BusinessSidebarLayout>{children}</BusinessSidebarLayout>
+      </RequireAuth>
+    );
+  }
+
   return (
     <RequireAuth>
       <SiteHeader />

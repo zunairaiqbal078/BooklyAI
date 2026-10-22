@@ -16,6 +16,7 @@ import { healthRouter } from "./modules/health/health.routes.js";
 import { marketplaceRouter } from "./modules/marketplace/marketplace.routes.js";
 import { offerRouter } from "./modules/offers/offer.routes.js";
 import { serviceRouter } from "./modules/services/service.routes.js";
+import { staffRouter } from "./modules/staff/staff.routes.js";
 import {
   ensureUploadsDir,
   UPLOADS_DIR,
@@ -49,6 +50,8 @@ export function createApp() {
   app.use("/api/businesses", businessRouter);
   app.use("/api/offers", offerRouter);
   app.use("/api/services", serviceRouter);
+  app.use("/api/staff", staffRouter);
+  app.use("/api/businesses/me/staff", staffRouter);
   app.use("/api/uploads", uploadRouter);
 
   app.use((_req, res) => {

@@ -20,6 +20,7 @@ type AppointmentWithRelations = Appointment & {
   business: Pick<Business, "id" | "name" | "slug">;
   service: Pick<Service, "id" | "name" | "durationMin" | "priceCents">;
   customer: Pick<User, "id" | "name" | "email">;
+  staff?: { id: string; name: string; title: string } | null;
   review: { id: string } | null;
 };
 
@@ -33,6 +34,9 @@ export interface AppointmentDto {
   customerEmail: string;
   serviceId: string;
   service: string;
+  staffId: string | null;
+  staffName: string | null;
+  staffTitle: string | null;
   durationMin: number;
   priceCents: number | null;
   startTime: string;
@@ -55,6 +59,9 @@ function toDto(row: AppointmentWithRelations): AppointmentDto {
     customerEmail: row.customer.email,
     serviceId: row.serviceId,
     service: row.service.name,
+    staffId: row.staffId ?? null,
+    staffName: row.staff?.name ?? null,
+    staffTitle: row.staff?.title ?? null,
     durationMin: row.service.durationMin,
     priceCents: row.service.priceCents,
     startTime: row.startTime.toISOString(),
@@ -71,6 +78,7 @@ const appointmentInclude = {
   business: { select: { id: true, name: true, slug: true } },
   service: { select: { id: true, name: true, durationMin: true, priceCents: true } },
   customer: { select: { id: true, name: true, email: true } },
+  staff: { select: { id: true, name: true, title: true } },
   review: { select: { id: true } },
 } as const;
 
@@ -98,6 +106,8 @@ function isOverlapConstraintError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return (
     message.includes("appointments_no_active_overlap") ||
+    message.includes("appointments_staff_no_active_overlap") ||
+    message.includes("appointments_business_no_active_overlap") ||
     message.includes("exclusion_violation") ||
     message.includes("23P01")
   );
@@ -129,12 +139,26 @@ export class AppointmentService {
       throw new NotFoundError("Service not found for this business.");
     }
 
+    if (input.staffId) {
+      const staff = await prisma.staffMember.findFirst({
+        where: {
+          id: input.staffId,
+          businessId: input.businessId,
+          isActive: true,
+        },
+      });
+      if (!staff) {
+        throw new NotFoundError("Selected staff member not found or is inactive.");
+      }
+    }
+
     const endTime = addMinutes(startTime, service.durationMin);
 
     // Fast UX check (hours + existing bookings). Authoritative check is inside the lock below.
     const available = await availabilityService.isSlotAvailable({
       businessId: input.businessId,
       serviceId: service.id,
+      staffId: input.staffId ?? undefined,
       startTime,
     });
 
@@ -144,16 +168,42 @@ export class AppointmentService {
 
     try {
       const created = await prisma.$transaction(async (tx) => {
-        // Serialize bookings per business so concurrent creates cannot both pass the overlap check.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.businessId}))`;
+        // Serialize bookings per staff member (or business if unassigned) so concurrent creates cannot both pass.
+        const lockKey = input.staffId ? `staff:${input.staffId}` : `business:${input.businessId}`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+
+        // Check if staff member is on leave during slot
+        if (input.staffId) {
+          const leave = await tx.staffLeave.findFirst({
+            where: {
+              staffId: input.staffId,
+              status: "APPROVED",
+              startDate: { lt: endTime },
+              endDate: { gt: startTime },
+            },
+            select: { id: true, reason: true },
+          });
+          if (leave) {
+            throw new ConflictError("STAFF_ON_LEAVE", "This staff member is on leave during the selected time.");
+          }
+        }
+
+        const overlapWhere = input.staffId
+          ? {
+              staffId: input.staffId,
+              status: { in: ACTIVE },
+              startTime: { lt: endTime },
+              endTime: { gt: startTime },
+            }
+          : {
+              businessId: input.businessId,
+              status: { in: ACTIVE },
+              startTime: { lt: endTime },
+              endTime: { gt: startTime },
+            };
 
         const overlap = await tx.appointment.findFirst({
-          where: {
-            businessId: input.businessId,
-            status: { in: ACTIVE },
-            startTime: { lt: endTime },
-            endTime: { gt: startTime },
-          },
+          where: overlapWhere,
           select: { id: true },
         });
 
@@ -166,6 +216,7 @@ export class AppointmentService {
             businessId: input.businessId,
             customerId: actor.id,
             serviceId: service.id,
+            staffId: input.staffId ?? null,
             startTime,
             endTime,
             status: "CONFIRMED",

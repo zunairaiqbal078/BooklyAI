@@ -139,8 +139,73 @@ export class AvailabilityService {
   async isSlotAvailable(params: {
     businessId: string;
     serviceId: string;
+    staffId?: string;
     startTime: Date;
   }): Promise<boolean> {
+    const service = await prisma.service.findUnique({
+      where: { id: params.serviceId },
+      select: { durationMin: true },
+    });
+    const durationMin = service?.durationMin ?? 30;
+    const endTime = addMinutes(params.startTime, durationMin);
+
+    if (params.staffId) {
+      // Check if staff is on leave
+      const onLeave = await prisma.staffLeave.findFirst({
+        where: {
+          staffId: params.staffId,
+          status: "APPROVED",
+          startDate: { lt: endTime },
+          endDate: { gt: params.startTime },
+        },
+        select: { id: true },
+      });
+      if (onLeave) return false;
+
+      // Check staff specific working hours if defined
+      const dayOfWeek = params.startTime.getUTCDay();
+      const staffRules = await prisma.staffAvailabilityRule.findMany({
+        where: { staffId: params.staffId, dayOfWeek },
+      });
+
+      const timeHm = formatTimeUtc(params.startTime);
+      const slotMinutes = parseHmToMinutes(timeHm);
+
+      if (staffRules.length > 0) {
+        const withinShift = staffRules.some((r) => {
+          const s = parseHmToMinutes(r.startTime);
+          const e = parseHmToMinutes(r.endTime);
+          return slotMinutes >= s && slotMinutes + durationMin <= e;
+        });
+        if (!withinShift) return false;
+      } else {
+        // Fallback to business operating hours
+        const bizRules = await prisma.availabilityRule.findMany({
+          where: { businessId: params.businessId, dayOfWeek },
+        });
+        const withinBiz = bizRules.some((r) => {
+          const s = parseHmToMinutes(r.startTime);
+          const e = parseHmToMinutes(r.endTime);
+          return slotMinutes >= s && slotMinutes + durationMin <= e;
+        });
+        if (!withinBiz) return false;
+      }
+
+      // Check staff overlapping appointments
+      const staffOverlap = await prisma.appointment.findFirst({
+        where: {
+          staffId: params.staffId,
+          status: { in: ACTIVE_STATUSES },
+          startTime: { lt: endTime },
+          endTime: { gt: params.startTime },
+        },
+        select: { id: true },
+      });
+      if (staffOverlap) return false;
+
+      return true;
+    }
+
     const date = params.startTime.toISOString().slice(0, 10);
     const time = formatTimeUtc(params.startTime);
     const result = await this.getSlots({

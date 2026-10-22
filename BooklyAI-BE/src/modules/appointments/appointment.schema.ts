@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createAppointmentSchema = z.object({
   businessId: z.string().uuid(),
   serviceId: z.string().uuid(),
+  staffId: z.string().uuid().optional().nullable(),
   startTime: z.string().datetime(),
   notes: z.string().trim().max(500).optional(),
 });
